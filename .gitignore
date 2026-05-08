@@ -1,0 +1,10 @@
+node_modules
+dist
+dist-ssr
+.env
+.env.*
+!.env.example
+src-tauri/target
+*.db
+*.sqlite
+*.sqlite3
