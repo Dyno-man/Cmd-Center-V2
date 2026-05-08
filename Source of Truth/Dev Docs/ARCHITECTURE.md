@@ -8,6 +8,7 @@
 - Local database: SQLite through `rusqlite`.
 - LLM gateway: OpenRouter.
 - Icons: lucide-react.
+- Assistant markdown rendering: `react-markdown` with `remark-gfm`.
 - Map rendering: local SVG geography through `world-atlas`, `topojson-client`, `d3-geo`, `d3-zoom`, `d3-selection`, and `d3-transition`.
 
 ## Frontend Shape
@@ -26,7 +27,7 @@ Main components:
 - `WorldMap` renders a local SVG world map, country click targets, pins, pan/zoom controls, selected-country focus, and interaction arrows.
 - `FilterBar` renders news/continent filters.
 - `CountryPanel` renders country, category, and article drill-in. It is mounted by `App.tsx` as an overlay inside the map only when a country is selected.
-- `ChatPanel` renders OpenRouter settings, context bin, messages, slash commands, and composer.
+- `ChatPanel` renders OpenRouter settings, context bin, messages, slash commands, markdown-formatted assistant replies, composer, and expanded chat modal.
 
 ## GUI And Map Behavior
 
@@ -70,12 +71,19 @@ Refresh:
 Chat:
 
 1. User attaches context from country/category/article views.
-2. User sends chat message or slash command.
+2. User sends chat message or slash command. `Enter` submits and `Shift+Enter` inserts a newline.
 3. `ChatPanel` expands markdown skill prompts when command matches a skill.
 4. `sendOpenRouterChat` calls OpenRouter if key exists.
 5. If no key exists, fallback response is returned.
 6. `/finalize` saves the response as a plan.
 7. `/update_plan "plan name"` loads a saved plan.
+
+Chat UI behavior:
+
+- Assistant messages render markdown/GFM as formatted chat content.
+- User messages remain plain preserved text.
+- Long messages wrap inside message bubbles and scroll inside the chat message area instead of resizing the dashboard or map.
+- The chat can open an in-app modal for longer conversations; the modal shares the same message, context, settings, busy, and draft state as the right-side panel.
 
 ## Native Layer
 

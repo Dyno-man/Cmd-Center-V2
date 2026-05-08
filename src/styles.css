@@ -6,6 +6,12 @@
   text-rendering: optimizeLegibility;
 }
 
+html,
+body,
+#root {
+  height: 100%;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -15,6 +21,7 @@ body {
   min-width: 320px;
   min-height: 100vh;
   background: #070a0f;
+  overflow: hidden;
 }
 
 button,
@@ -30,9 +37,11 @@ button {
 .app-shell {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 340px;
-  min-height: 100vh;
+  height: 100vh;
+  min-height: 0;
   gap: 12px;
   padding: 12px;
+  overflow: hidden;
   background:
     radial-gradient(circle at 22% 12%, rgba(44, 89, 112, 0.24), transparent 34%),
     linear-gradient(135deg, #0a0f16, #05070b 62%);
@@ -51,6 +60,8 @@ button {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .topbar {
@@ -125,6 +136,7 @@ button {
   padding: 12px;
   min-height: 0;
   flex: 1;
+  overflow: hidden;
 }
 
 .map-column {
@@ -138,6 +150,7 @@ button {
 .map-stage {
   position: relative;
   min-height: 560px;
+  min-width: 0;
 }
 
 .world-map {
@@ -383,7 +396,7 @@ button {
 .panel-header,
 .chat-header {
   display: grid;
-  grid-template-columns: 34px minmax(0, 1fr) 34px;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
   margin-bottom: 12px;
@@ -405,6 +418,12 @@ button {
   height: 34px;
   display: inline-grid;
   place-items: center;
+}
+
+.chat-header__actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
 }
 
 .score-list,
@@ -430,7 +449,7 @@ button {
 }
 
 .score-card small,
-.message p {
+.message-content--plain {
   white-space: pre-wrap;
 }
 
@@ -492,12 +511,15 @@ button {
   min-height: 64px;
 }
 
-.chat-panel {
+.chat-panel,
+.chat-modal {
   min-width: 0;
+  min-height: 0;
   padding: 12px;
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr) auto;
   gap: 10px;
+  overflow: hidden;
 }
 
 .settings-panel {
@@ -532,6 +554,7 @@ button {
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
+  min-width: 0;
 }
 
 .context-bin div {
@@ -546,6 +569,8 @@ button {
   border-radius: 999px;
   padding: 5px 8px;
   font-size: 12px;
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
 .messages {
@@ -554,12 +579,18 @@ button {
   flex-direction: column;
   gap: 8px;
   padding-right: 2px;
+  min-width: 0;
+  min-height: 0;
 }
 
 .message {
   border-radius: 8px;
   padding: 10px;
   font-size: 14px;
+  max-width: 94%;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .message--assistant {
@@ -570,21 +601,88 @@ button {
 .message--user {
   background: #173653;
   align-self: flex-end;
+  max-width: 90%;
 }
 
-.message p {
+.message-content {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.message-content p {
   margin: 0;
+}
+
+.message-content--markdown {
+  display: grid;
+  gap: 8px;
+}
+
+.message-content--markdown :is(h1, h2, h3, h4, h5, h6) {
+  margin: 2px 0 0;
+  font-size: 15px;
+  line-height: 1.25;
+}
+
+.message-content--markdown :is(p, ul, ol, blockquote, pre) {
+  margin: 0;
+}
+
+.message-content--markdown :is(ul, ol) {
+  padding-left: 18px;
+}
+
+.message-content--markdown li + li {
+  margin-top: 4px;
+}
+
+.message-content--markdown code {
+  border: 1px solid rgba(231, 237, 243, 0.14);
+  border-radius: 4px;
+  background: rgba(5, 8, 12, 0.38);
+  padding: 1px 4px;
+  font-size: 13px;
+}
+
+.message-content--markdown pre {
+  max-width: 100%;
+  overflow: auto;
+  border: 1px solid rgba(231, 237, 243, 0.14);
+  border-radius: 6px;
+  background: rgba(5, 8, 12, 0.5);
+  padding: 8px;
+}
+
+.message-content--markdown pre code {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  white-space: pre;
+}
+
+.message-content--markdown blockquote {
+  border-left: 3px solid #8160a0;
+  color: #c9d2db;
+  padding-left: 10px;
+}
+
+.message-content--markdown a {
+  color: #91d7ff;
 }
 
 .composer {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 42px;
   gap: 8px;
+  min-width: 0;
 }
 
 .composer textarea {
   min-height: 78px;
+  max-height: 32vh;
   resize: vertical;
+  overflow: auto;
 }
 
 .composer button {
@@ -594,9 +692,44 @@ button {
   color: #e7edf3;
 }
 
+.chat-modal-backdrop {
+  position: fixed;
+  z-index: 40;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 28px;
+  background: rgba(2, 5, 9, 0.68);
+  backdrop-filter: blur(6px);
+}
+
+.chat-modal {
+  width: min(980px, 100%);
+  height: min(820px, 100%);
+  background: rgba(12, 18, 25, 0.98);
+  border: 1px solid #40566b;
+  border-radius: 8px;
+  box-shadow: 0 22px 80px rgba(0, 0, 0, 0.54);
+}
+
+.chat-modal .message {
+  max-width: min(780px, 94%);
+}
+
+.chat-modal .message--user {
+  max-width: min(720px, 90%);
+}
+
 @media (max-width: 1100px) {
+  body {
+    overflow: auto;
+  }
+
   .app-shell {
     grid-template-columns: 1fr;
+    height: auto;
+    min-height: 100vh;
+    overflow: visible;
   }
 
   .chat-panel {
@@ -616,5 +749,9 @@ button {
 
   .market-card {
     flex: 1;
+  }
+
+  .chat-modal-backdrop {
+    padding: 12px;
   }
 }

@@ -1,5 +1,7 @@
-import { Bot, FilePlus2, Send, Settings } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Bot, FilePlus2, Maximize2, Send, Settings, X } from "lucide-react";
+import { type KeyboardEvent, useEffect, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { loadPlan, loadSettings, loadSkills, savePlan, saveSettings } from "../services/storage";
 import { sendOpenRouterChat } from "../services/openRouter";
 import type { AppSettings, ChatMessage, Skill } from "../types/domain";
@@ -18,19 +20,33 @@ export function ChatPanel({ messages, context, onMessage, onAssistant, onClearCo
   const [skills, setSkills] = useState<Skill[]>([]);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
     loadSettings().then(setSettings);
     loadSkills().then(setSkills);
   }, []);
 
+  useEffect(() => {
+    if (!expanded) return;
+
+    function closeOnEscape(event: globalThis.KeyboardEvent) {
+      if (event.key === "Escape") setExpanded(false);
+    }
+
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [expanded]);
+
   async function submit() {
-    if (!draft.trim() || !settings || busy) return;
+    const rawDraft = draft;
+    const trimmedDraft = rawDraft.trim();
+    if (!trimmedDraft || !settings || busy) return;
 
     const userMessage: ChatMessage = {
       id: crypto.randomUUID(),
       role: "user",
-      content: expandSkill(draft, skills),
+      content: expandSkill(rawDraft, skills),
       createdAt: new Date().toISOString(),
       contextIds: context.map((item) => item.label)
     };
@@ -40,14 +56,14 @@ export function ChatPanel({ messages, context, onMessage, onAssistant, onClearCo
     onMessage(userMessage);
 
     try {
-      if (draft.startsWith("/update_plan")) {
-        const title = draft.match(/"(.+)"/)?.[1] ?? draft.replace("/update_plan", "").trim();
+      if (trimmedDraft.startsWith("/update_plan")) {
+        const title = trimmedDraft.match(/"(.+)"/)?.[1] ?? trimmedDraft.replace("/update_plan", "").trim();
         const plan = await loadPlan(title);
         onAssistant(plan ? `Loaded plan "${title}" into context:\n\n${plan}` : `No saved plan found for "${title}".`);
       } else {
         const reply = await sendOpenRouterChat(settings, [...messages, userMessage], context.map((item) => item.content));
         onAssistant(reply);
-        if (draft.startsWith("/finalize")) {
+        if (trimmedDraft.startsWith("/finalize")) {
           await savePlan(`plan-${new Date().toISOString().slice(0, 10)}`, reply);
         }
       }
@@ -58,25 +74,124 @@ export function ChatPanel({ messages, context, onMessage, onAssistant, onClearCo
     }
   }
 
+  function handleComposerKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) return;
+    event.preventDefault();
+    void submit();
+  }
+
+  const chatSurface = (
+    <ChatSurface
+      busy={busy}
+      context={context}
+      draft={draft}
+      messages={messages}
+      onClearContext={onClearContext}
+      onDraftChange={setDraft}
+      onExpand={() => setExpanded(true)}
+      onKeyDown={handleComposerKeyDown}
+      onSettingsChange={setSettings}
+      onSettingsOpenChange={setSettingsOpen}
+      onSubmit={() => void submit()}
+      settings={settings}
+      settingsOpen={settingsOpen}
+    />
+  );
+
   return (
-    <aside className="chat-panel">
+    <>
+      <aside className="chat-panel">{chatSurface}</aside>
+      {expanded ? (
+        <div aria-modal="true" className="chat-modal-backdrop" onClick={() => setExpanded(false)} role="dialog">
+          <section className="chat-modal" onClick={(event) => event.stopPropagation()}>
+            <ChatSurface
+              busy={busy}
+              context={context}
+              draft={draft}
+              expanded
+              messages={messages}
+              onClearContext={onClearContext}
+              onClose={() => setExpanded(false)}
+              onDraftChange={setDraft}
+              onKeyDown={handleComposerKeyDown}
+              onSettingsChange={setSettings}
+              onSettingsOpenChange={setSettingsOpen}
+              onSubmit={() => void submit()}
+              settings={settings}
+              settingsOpen={settingsOpen}
+            />
+          </section>
+        </div>
+      ) : null}
+    </>
+  );
+}
+
+interface ChatSurfaceProps {
+  busy: boolean;
+  context: { label: string; content: string }[];
+  draft: string;
+  expanded?: boolean;
+  messages: ChatMessage[];
+  onClearContext: () => void;
+  onClose?: () => void;
+  onDraftChange: (value: string) => void;
+  onExpand?: () => void;
+  onKeyDown: (event: KeyboardEvent<HTMLTextAreaElement>) => void;
+  onSettingsChange: (settings: AppSettings) => void;
+  onSettingsOpenChange: (open: boolean | ((value: boolean) => boolean)) => void;
+  onSubmit: () => void;
+  settings: AppSettings | null;
+  settingsOpen: boolean;
+}
+
+function ChatSurface({
+  busy,
+  context,
+  draft,
+  expanded = false,
+  messages,
+  onClearContext,
+  onClose,
+  onDraftChange,
+  onExpand,
+  onKeyDown,
+  onSettingsChange,
+  onSettingsOpenChange,
+  onSubmit,
+  settings,
+  settingsOpen
+}: ChatSurfaceProps) {
+  return (
+    <>
       <div className="chat-header">
         <Bot size={20} />
-        <h2>AI Chat Room</h2>
-        <button aria-label="Settings" className="icon-button" onClick={() => setSettingsOpen((value) => !value)} type="button">
-          <Settings size={18} />
-        </button>
+        <h2>{expanded ? "Expanded AI Chat" : "AI Chat Room"}</h2>
+        <div className="chat-header__actions">
+          <button aria-label="Settings" className="icon-button" onClick={() => onSettingsOpenChange((value) => !value)} type="button">
+            <Settings size={18} />
+          </button>
+          {expanded ? (
+            <button aria-label="Close expanded chat" className="icon-button" onClick={onClose} type="button">
+              <X size={18} />
+            </button>
+          ) : (
+            <button aria-label="Expand chat" className="icon-button" onClick={onExpand} type="button">
+              <Maximize2 size={18} />
+            </button>
+          )}
+        </div>
       </div>
       {settingsOpen && settings && (
         <form className="settings-panel" onSubmit={(event) => {
           event.preventDefault();
           saveSettings(settings);
-          setSettingsOpen(false);
+          onSettingsOpenChange(false);
         }}>
           <label>
             OpenRouter Key
             <input
-              onChange={(event) => setSettings({ ...settings, openRouterApiKey: event.target.value })}
+              onChange={(event) => onSettingsChange({ ...settings, openRouterApiKey: event.target.value })}
               placeholder="sk-or-..."
               type="password"
               value={settings.openRouterApiKey}
@@ -85,7 +200,7 @@ export function ChatPanel({ messages, context, onMessage, onAssistant, onClearCo
           <label>
             Model
             <input
-              onChange={(event) => setSettings({ ...settings, openRouterModel: event.target.value })}
+              onChange={(event) => onSettingsChange({ ...settings, openRouterModel: event.target.value })}
               value={settings.openRouterModel}
             />
           </label>
@@ -93,7 +208,7 @@ export function ChatPanel({ messages, context, onMessage, onAssistant, onClearCo
             Refresh Minutes
             <input
               min={5}
-              onChange={(event) => setSettings({ ...settings, refreshMinutes: Number(event.target.value) })}
+              onChange={(event) => onSettingsChange({ ...settings, refreshMinutes: Number(event.target.value) })}
               type="number"
               value={settings.refreshMinutes}
             />
@@ -118,25 +233,35 @@ export function ChatPanel({ messages, context, onMessage, onAssistant, onClearCo
       <div className="messages">
         {messages.map((message) => (
           <div className={`message message--${message.role}`} key={message.id}>
-            <p>{message.content}</p>
+            <MessageContent message={message} />
           </div>
         ))}
       </div>
       <div className="composer">
         <textarea
-          onChange={(event) => setDraft(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) submit();
-          }}
+          onChange={(event) => onDraftChange(event.target.value)}
+          onKeyDown={onKeyDown}
           placeholder='Ask, use /macro, /finalize, or /update_plan "plan-2026-05-08"'
           value={draft}
         />
-        <button aria-label="Send" disabled={busy} onClick={submit} type="button">
+        <button aria-label="Send" disabled={busy} onClick={onSubmit} type="button">
           <Send size={18} />
         </button>
       </div>
-    </aside>
+    </>
   );
+}
+
+function MessageContent({ message }: { message: ChatMessage }) {
+  if (message.role === "assistant") {
+    return (
+      <div className="message-content message-content--markdown">
+        <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
+      </div>
+    );
+  }
+
+  return <p className="message-content message-content--plain">{message.content}</p>;
 }
 
 function expandSkill(input: string, skills: Skill[]) {

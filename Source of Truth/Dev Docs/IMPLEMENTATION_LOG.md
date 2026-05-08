@@ -16,6 +16,7 @@
   - clsx
   - d3 map dependencies: `d3-geo`, `d3-selection`, `d3-transition`, `d3-zoom`
   - local map data/decode dependencies: `topojson-client`, `world-atlas`
+  - Markdown rendering dependencies: `react-markdown`, `remark-gfm`
   - React type packages
 
 ### Frontend
@@ -56,6 +57,10 @@
   - `/finalize` command.
   - `/update_plan "plan name"` command.
   - Markdown skill expansion.
+  - Assistant markdown rendering for formatted replies.
+  - `Enter` to send and `Shift+Enter` for multiline drafts.
+  - Expanded in-app chat modal for longer conversations.
+  - Long-message wrapping and internal chat scrolling so chat content does not resize the map workspace.
   - Fallback assistant response when no OpenRouter key exists.
 
 ### Native Tauri Shell
@@ -105,6 +110,8 @@ npm run build
 Result: passed.
 
 After the map/dark-mode iteration, `npm run build` was re-run and passed.
+
+After the chat interaction iteration, `npm run build` was re-run and passed. The build produced the standard Vite chunk-size warning for the main bundle.
 
 ### Native Rust/Tauri
 

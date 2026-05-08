@@ -20,6 +20,9 @@ Command Center V2 is a desktop-first market intelligence dashboard. It should he
 - Plus buttons add country/category/article context into chat.
 - Chat uses OpenRouter for multi-model LLM capabilities.
 - Skills are markdown prompts invoked with slash commands.
+- Assistant markdown is rendered as formatted chat content instead of raw markdown text.
+- Chat composer sends on `Enter`; `Shift+Enter` inserts a newline.
+- Chat can pop out into a larger in-app modal for longer planning conversations.
 - `/finalize` creates a markdown plan of action.
 - `/update_plan "plan name"` loads saved plans/results into chat context.
 - SQLite is intended as the local source of truth.
@@ -32,6 +35,8 @@ Command Center V2 is a desktop-first market intelligence dashboard. It should he
 - `WorldMap` now uses a real local SVG world map built from `world-atlas`, `topojson-client`, `d3-geo`, and `d3-zoom`.
 - Map supports country click targets, visible country pins, drag pan, wheel zoom, explicit zoom/reset controls, selected-country highlighting, and projected interaction arrows.
 - Country drill-down is not a permanent layout column. It appears only after selecting a country and overlays the right side of the map.
+- Chat message overflow is contained inside the chat scroll area so long messages do not stretch the main dashboard or affect the map.
+- The right-side chat panel has an expanded modal mode that reuses the same conversation, context, settings, and composer state.
 - Native Tauri commands exist for snapshots, settings, refresh, skills, plans, and SQLite initialization.
 - Desktop shell compiles and launches.
 - OpenRouter calls are currently made from the frontend service layer, using `.env` or settings-entered key.
@@ -42,7 +47,7 @@ Command Center V2 is a desktop-first market intelligence dashboard. It should he
 - `src/App.tsx` - top-level dashboard state and interaction wiring.
 - `src/components/WorldMap.tsx` - local SVG map engine, pins, zoom/pan, country selection, and arrows.
 - `src/components/CountryPanel.tsx` - country/category/article drill-in rendered as a map overlay from `App.tsx`.
-- `src/components/ChatPanel.tsx` - chat UI, settings, slash commands.
+- `src/components/ChatPanel.tsx` - chat UI, settings, slash commands, markdown rendering, Enter-to-send composer, and expanded modal.
 - `src/services/storage.ts` - Tauri command boundary plus browser fallback.
 - `src/services/openRouter.ts` - OpenRouter chat request/fallback.
 - `src/data/sampleData.ts` - sample countries, categories, articles, indexes.

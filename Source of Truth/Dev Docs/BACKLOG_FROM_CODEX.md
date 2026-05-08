@@ -116,7 +116,8 @@ This is the list of work I believe should be added or completed next, based on t
    - Verify desktop and smaller screens with screenshots.
    - Continue refining map/panel responsive behavior, especially smaller screens.
    - Replace temporary Tauri icon.
-   - Improve scroll handling in country and chat panels.
+   - Continue improving country panel scroll handling.
+   - Chat scroll handling was improved for long messages and expanded conversations; future work should add automated visual regression coverage.
 
 6. Add source control.
    - The current `.git` directory is not valid repo metadata.
