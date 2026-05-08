@@ -13,7 +13,7 @@ import type { CountryContext, InteractionArrow } from "../types/domain";
 interface Props {
   countries: CountryContext[];
   interactions: InteractionArrow[];
-  selectedCountryCode: string;
+  selectedCountryCode: string | null;
   onSelectCountry: (country: CountryContext) => void;
 }
 
@@ -78,7 +78,7 @@ export function WorldMap({ countries, interactions, selectedCountryCode, onSelec
     [countries]
   );
 
-  const selectedCountryId = COUNTRY_ID_BY_CODE[selectedCountryCode];
+  const selectedCountryId = selectedCountryCode ? COUNTRY_ID_BY_CODE[selectedCountryCode] : null;
 
   const countryFeatureByCode = useMemo(() => {
     const entries = countries

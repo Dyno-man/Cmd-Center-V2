@@ -1,4 +1,4 @@
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { ChatPanel } from "./components/ChatPanel";
 import { CountryPanel } from "./components/CountryPanel";
@@ -12,7 +12,7 @@ import "./styles.css";
 
 export default function App() {
   const [snapshot, setSnapshot] = useState<CommandCenterSnapshot>(sampleSnapshot);
-  const [selectedCountryCode, setSelectedCountryCode] = useState("USA");
+  const [selectedCountryCode, setSelectedCountryCode] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<MarketCategory | null>(null);
   const [selectedArticle, setSelectedArticle] = useState<ArticleContext | null>(null);
   const [activeContinents, setActiveContinents] = useState<string[]>(["North America", "Europe", "Asia", "Oceania"]);
@@ -34,12 +34,18 @@ export default function App() {
   );
 
   const selectedCountry = useMemo(
-    () => countries.find((country) => country.code === selectedCountryCode) ?? countries[0] ?? snapshot.countries[0],
-    [countries, selectedCountryCode, snapshot.countries]
+    () => countries.find((country) => country.code === selectedCountryCode) ?? null,
+    [countries, selectedCountryCode]
   );
 
   function selectCountry(country: CountryContext) {
     setSelectedCountryCode(country.code);
+    setSelectedCategory(null);
+    setSelectedArticle(null);
+  }
+
+  function closeCountryPanel() {
+    setSelectedCountryCode(null);
     setSelectedCategory(null);
     setSelectedArticle(null);
   }
@@ -89,12 +95,29 @@ export default function App() {
         </header>
         <div className="dashboard-grid">
           <div className="map-column">
-            <WorldMap
-              countries={countries}
-              interactions={snapshot.interactions}
-              onSelectCountry={selectCountry}
-              selectedCountryCode={selectedCountry.code}
-            />
+            <div className="map-stage">
+              <WorldMap
+                countries={countries}
+                interactions={snapshot.interactions}
+                onSelectCountry={selectCountry}
+                selectedCountryCode={selectedCountry?.code ?? null}
+              />
+              {selectedCountry ? (
+                <div className="map-panel-overlay">
+                  <button aria-label="Close country panel" className="map-panel-close" onClick={closeCountryPanel} type="button">
+                    <X size={17} />
+                  </button>
+                  <CountryPanel
+                    country={selectedCountry}
+                    onAddContext={addContext}
+                    onSelectArticle={setSelectedArticle}
+                    onSelectCategory={setSelectedCategory}
+                    selectedArticle={selectedArticle}
+                    selectedCategory={selectedCategory}
+                  />
+                </div>
+              ) : null}
+            </div>
             <FilterBar
               activeContinents={activeContinents}
               activeNewsTypes={activeNewsTypes}
@@ -102,14 +125,6 @@ export default function App() {
               onNewsTypesChange={setActiveNewsTypes}
             />
           </div>
-          <CountryPanel
-            country={selectedCountry}
-            onAddContext={addContext}
-            onSelectArticle={setSelectedArticle}
-            onSelectCategory={setSelectedCategory}
-            selectedArticle={selectedArticle}
-            selectedCategory={selectedCategory}
-          />
         </div>
       </section>
       <ChatPanel

@@ -1,6 +1,6 @@
 :root {
-  color: #172026;
-  background: #eef1f4;
+  color: #e7edf3;
+  background: #070a0f;
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -14,6 +14,7 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
+  background: #070a0f;
 }
 
 button,
@@ -32,14 +33,18 @@ button {
   min-height: 100vh;
   gap: 12px;
   padding: 12px;
+  background:
+    radial-gradient(circle at 22% 12%, rgba(44, 89, 112, 0.24), transparent 34%),
+    linear-gradient(135deg, #0a0f16, #05070b 62%);
 }
 
 .workspace,
 .chat-panel,
 .country-panel {
-  background: #fbfcfd;
-  border: 1px solid #c9d1d9;
+  background: rgba(12, 18, 25, 0.94);
+  border: 1px solid #263442;
   border-radius: 8px;
+  box-shadow: 0 14px 38px rgba(0, 0, 0, 0.24);
 }
 
 .workspace {
@@ -54,7 +59,7 @@ button {
   align-items: center;
   gap: 12px;
   padding: 12px;
-  border-bottom: 1px solid #d6dde5;
+  border-bottom: 1px solid #22303d;
 }
 
 .topbar h1 {
@@ -63,7 +68,7 @@ button {
 }
 
 .topbar span {
-  color: #5b6874;
+  color: #91a0ad;
   font-size: 13px;
 }
 
@@ -77,10 +82,11 @@ button {
 .market-card {
   min-width: 116px;
   padding: 8px 10px;
-  border: 1px solid #aeb8c2;
+  border: 1px solid #334657;
   border-radius: 6px;
   display: grid;
   gap: 2px;
+  color: #071018;
 }
 
 .market-card--up {
@@ -101,9 +107,9 @@ button {
 .filter-popover summary,
 .settings-panel button,
 .context-bin button {
-  border: 1px solid #aab5bf;
-  background: #eef2f5;
-  color: #1a242d;
+  border: 1px solid #3a4c5e;
+  background: #121c26;
+  color: #e7edf3;
   border-radius: 6px;
   padding: 9px 11px;
 }
@@ -115,9 +121,7 @@ button {
 }
 
 .dashboard-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(320px, 410px);
-  gap: 12px;
+  display: block;
   padding: 12px;
   min-height: 0;
   flex: 1;
@@ -128,11 +132,18 @@ button {
   grid-template-rows: minmax(420px, 1fr) auto;
   gap: 10px;
   min-width: 0;
+  height: 100%;
+}
+
+.map-stage {
+  position: relative;
+  min-height: 560px;
 }
 
 .world-map {
   position: relative;
-  min-height: 420px;
+  min-height: 560px;
+  height: 100%;
   border: 1px solid #111820;
   border-radius: 8px;
   background: #0d1116;
@@ -140,22 +151,14 @@ button {
 }
 
 .world-map::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background-image:
-    linear-gradient(rgba(255, 255, 255, 0.055) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.055) 1px, transparent 1px);
-  background-size: 62px 62px;
-  mask-image: radial-gradient(circle at center, black, transparent 78%);
+  content: none;
 }
 
 .map-toolbar {
   position: absolute;
   z-index: 2;
   top: 12px;
-  right: 12px;
+  left: 12px;
   display: flex;
   gap: 6px;
 }
@@ -176,10 +179,10 @@ button {
   display: block;
   width: 100%;
   height: 100%;
-  min-height: 420px;
+  min-height: 560px;
   background:
     radial-gradient(circle at 50% 42%, rgba(48, 62, 72, 0.24), transparent 62%),
-    linear-gradient(135deg, #141c23, #06090d);
+    linear-gradient(135deg, #111923, #03070c);
   touch-action: none;
 }
 
@@ -188,8 +191,8 @@ button {
 }
 
 .map-country {
-  fill: #d9dddf;
-  stroke: #818a91;
+  fill: #3d4954;
+  stroke: #16212b;
   stroke-width: 0.65;
   vector-effect: non-scaling-stroke;
   transition: fill 140ms ease, stroke 140ms ease, filter 140ms ease;
@@ -197,13 +200,13 @@ button {
 
 .map-country--available {
   cursor: pointer;
-  fill: #eff2f3;
-  stroke: #56616b;
+  fill: #657584;
+  stroke: #9aa8b4;
 }
 
 .map-country--available:hover,
 .map-country--available:focus {
-  fill: #c8ecf8;
+  fill: #9bdcf2;
   outline: none;
 }
 
@@ -281,10 +284,11 @@ button {
   display: flex;
   gap: 8px;
   align-items: stretch;
-  border: 1px solid #c8d1da;
+  border: 1px solid #263442;
   border-radius: 8px;
   padding: 8px;
   min-height: 78px;
+  background: rgba(12, 18, 25, 0.88);
 }
 
 .filter-popover {
@@ -308,11 +312,11 @@ button {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 18px;
-  background: #ffffff;
-  border: 1px solid #111820;
+  background: #101821;
+  border: 1px solid #394b5c;
   border-radius: 8px;
   padding: 18px;
-  box-shadow: 0 16px 38px rgba(12, 20, 28, 0.2);
+  box-shadow: 0 16px 38px rgba(0, 0, 0, 0.42);
 }
 
 .filter-panel::after {
@@ -322,9 +326,9 @@ button {
   left: 38px;
   width: 16px;
   height: 16px;
-  background: #fff;
-  border-right: 1px solid #111820;
-  border-bottom: 1px solid #111820;
+  background: #101821;
+  border-right: 1px solid #394b5c;
+  border-bottom: 1px solid #394b5c;
   transform: rotate(45deg);
 }
 
@@ -342,18 +346,52 @@ button {
 }
 
 .toolbar-spacer {
-  color: #5f6c78;
+  color: #8c9aa7;
   display: flex;
   align-items: center;
   padding-inline: 12px;
 }
 
 .country-panel {
-  min-height: 520px;
+  min-height: 0;
+  max-height: calc(100% - 32px);
   padding: 12px;
   display: flex;
   flex-direction: column;
   min-width: 0;
+  color: #e7edf3;
+}
+
+.map-panel-overlay {
+  position: absolute;
+  z-index: 3;
+  top: 16px;
+  right: 16px;
+  bottom: 16px;
+  width: min(410px, calc(100% - 32px));
+  pointer-events: auto;
+}
+
+.map-panel-overlay .country-panel {
+  height: 100%;
+  background: rgba(10, 15, 21, 0.92);
+  border-color: rgba(129, 160, 184, 0.42);
+  backdrop-filter: blur(10px);
+}
+
+.map-panel-close {
+  position: absolute;
+  z-index: 4;
+  top: 10px;
+  right: 52px;
+  width: 32px;
+  height: 32px;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid #405366;
+  border-radius: 6px;
+  background: #121c26;
+  color: #e7edf3;
 }
 
 .panel-header,
@@ -373,8 +411,9 @@ button {
 }
 
 .icon-button {
-  border: 1px solid #aeb8c2;
-  background: #f7f9fb;
+  border: 1px solid #3a4c5e;
+  background: #121c26;
+  color: #e7edf3;
   border-radius: 6px;
   width: 34px;
   height: 34px;
@@ -392,8 +431,9 @@ button {
 
 .score-card,
 .article-list button {
-  border: 1px solid #202831;
-  background: #e7e8ea;
+  border: 1px solid #344554;
+  background: #151f29;
+  color: #e7edf3;
   border-radius: 8px;
   padding: 8px;
   display: grid;
@@ -408,13 +448,18 @@ button {
   white-space: pre-wrap;
 }
 
+.score-card small {
+  color: #aeb9c3;
+}
+
 .score-pill {
-  border: 1px solid #1a242d;
+  border: 1px solid #10161c;
   border-radius: 8px;
   display: grid;
   place-items: center;
   min-height: 58px;
   font-weight: 800;
+  color: #071018;
 }
 
 .score-pill--low {
@@ -430,7 +475,7 @@ button {
 }
 
 .detail-block {
-  border: 1px solid #1f2832;
+  border: 1px solid #344554;
   border-radius: 8px;
   padding: 18px;
 }
@@ -440,15 +485,15 @@ button {
 }
 
 .detail-block--green {
-  background: #c5f4d2;
+  background: rgba(54, 155, 91, 0.28);
 }
 
 .detail-block--blue {
-  background: #c9dcf5;
+  background: rgba(63, 126, 190, 0.28);
 }
 
 .detail-block--tan {
-  background: #f3d6bb;
+  background: rgba(184, 130, 72, 0.28);
 }
 
 .article-list button {
@@ -467,10 +512,10 @@ button {
 .settings-panel {
   display: grid;
   gap: 8px;
-  border: 1px solid #c8d1da;
+  border: 1px solid #263442;
   border-radius: 8px;
   padding: 10px;
-  background: #f8fafb;
+  background: #0f1720;
 }
 
 .settings-panel label {
@@ -481,15 +526,15 @@ button {
 
 .settings-panel input,
 .composer textarea {
-  border: 1px solid #b8c2cc;
+  border: 1px solid #334657;
   border-radius: 6px;
   padding: 9px;
-  background: #fff;
-  color: #172026;
+  background: #090f15;
+  color: #e7edf3;
 }
 
 .context-bin {
-  border: 1px solid #c8d1da;
+  border: 1px solid #263442;
   border-radius: 8px;
   padding: 10px;
   display: flex;
@@ -506,7 +551,7 @@ button {
 }
 
 .context-bin span {
-  background: #dce8f6;
+  background: #18344f;
   border-radius: 999px;
   padding: 5px 8px;
   font-size: 12px;
@@ -527,12 +572,12 @@ button {
 }
 
 .message--assistant {
-  background: #ead2f3;
+  background: #30213a;
   align-self: flex-start;
 }
 
 .message--user {
-  background: #cfe0f7;
+  background: #173653;
   align-self: flex-end;
 }
 
@@ -552,9 +597,10 @@ button {
 }
 
 .composer button {
-  border: 1px solid #1f2832;
+  border: 1px solid #34516b;
   border-radius: 8px;
-  background: #d8ebff;
+  background: #14334e;
+  color: #e7edf3;
 }
 
 @media (max-width: 1100px) {
