@@ -365,16 +365,16 @@ button {
 .map-panel-overlay {
   position: absolute;
   z-index: 3;
-  top: 50%;
+  top: 14px;
   right: 16px;
+  bottom: 14px;
   width: min(410px, calc(100% - 32px));
-  height: min(78%, 640px);
   pointer-events: auto;
-  transform: translateY(-50%);
 }
 
 .map-panel-overlay .country-panel {
   height: 100%;
+  max-height: none;
   background: rgba(10, 15, 21, 0.92);
   border-color: rgba(129, 160, 184, 0.42);
   backdrop-filter: blur(10px);
