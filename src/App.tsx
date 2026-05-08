@@ -1,4 +1,4 @@
-import { RefreshCw, X } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { ChatPanel } from "./components/ChatPanel";
 import { CountryPanel } from "./components/CountryPanel";
@@ -99,14 +99,12 @@ export default function App() {
               <WorldMap
                 countries={countries}
                 interactions={snapshot.interactions}
+                onClearCountry={closeCountryPanel}
                 onSelectCountry={selectCountry}
                 selectedCountryCode={selectedCountry?.code ?? null}
               />
               {selectedCountry ? (
                 <div className="map-panel-overlay">
-                  <button aria-label="Close country panel" className="map-panel-close" onClick={closeCountryPanel} type="button">
-                    <X size={17} />
-                  </button>
                   <CountryPanel
                     country={selectedCountry}
                     onAddContext={addContext}

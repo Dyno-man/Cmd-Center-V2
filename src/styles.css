@@ -365,11 +365,12 @@ button {
 .map-panel-overlay {
   position: absolute;
   z-index: 3;
-  top: 16px;
+  top: 50%;
   right: 16px;
-  bottom: 16px;
   width: min(410px, calc(100% - 32px));
+  height: min(78%, 640px);
   pointer-events: auto;
+  transform: translateY(-50%);
 }
 
 .map-panel-overlay .country-panel {
@@ -377,21 +378,6 @@ button {
   background: rgba(10, 15, 21, 0.92);
   border-color: rgba(129, 160, 184, 0.42);
   backdrop-filter: blur(10px);
-}
-
-.map-panel-close {
-  position: absolute;
-  z-index: 4;
-  top: 10px;
-  right: 52px;
-  width: 32px;
-  height: 32px;
-  display: inline-grid;
-  place-items: center;
-  border: 1px solid #405366;
-  border-radius: 6px;
-  background: #121c26;
-  color: #e7edf3;
 }
 
 .panel-header,
@@ -450,6 +436,11 @@ button {
 
 .score-card small {
   color: #aeb9c3;
+}
+
+.score-card > span:last-child {
+  display: grid;
+  gap: 4px;
 }
 
 .score-pill {

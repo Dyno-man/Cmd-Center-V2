@@ -14,6 +14,7 @@ interface Props {
   countries: CountryContext[];
   interactions: InteractionArrow[];
   selectedCountryCode: string | null;
+  onClearCountry: () => void;
   onSelectCountry: (country: CountryContext) => void;
 }
 
@@ -63,7 +64,7 @@ function arcPath(from: [number, number], to: [number, number], lift: number) {
   return `M ${from[0]} ${from[1]} Q ${midX} ${midY} ${to[0]} ${to[1]}`;
 }
 
-export function WorldMap({ countries, interactions, selectedCountryCode, onSelectCountry }: Props) {
+export function WorldMap({ countries, interactions, selectedCountryCode, onClearCountry, onSelectCountry }: Props) {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const zoomRef = useRef<ZoomBehavior<SVGSVGElement, unknown> | null>(null);
   const [transform, setTransform] = useState<ZoomTransform>(zoomIdentity);
@@ -140,7 +141,7 @@ export function WorldMap({ countries, interactions, selectedCountryCode, onSelec
       }
 
       const nextTransform = zoomIdentity
-        .translate(WIDTH / 2, HEIGHT / 2)
+        .translate(WIDTH * 0.38, HEIGHT / 2)
         .scale(scale)
         .translate(-center[0], -center[1]);
 
@@ -183,6 +184,11 @@ export function WorldMap({ countries, interactions, selectedCountryCode, onSelec
   function selectCountry(country: CountryContext) {
     onSelectCountry(country);
     focusCountry(country);
+  }
+
+  function clearCountry() {
+    onClearCountry();
+    resetZoom();
   }
 
   function zoomBy(multiplier: number) {
@@ -228,7 +234,7 @@ export function WorldMap({ countries, interactions, selectedCountryCode, onSelec
             </marker>
           ))}
         </defs>
-        <rect className="map-ocean" height={HEIGHT} width={WIDTH} />
+        <rect className="map-ocean" height={HEIGHT} onClick={clearCountry} width={WIDTH} />
         <g className="map-viewport" transform={transform.toString()}>
           <g className="map-countries">
             {worldFeatures.map((mapFeature) => {
@@ -249,7 +255,7 @@ export function WorldMap({ countries, interactions, selectedCountryCode, onSelec
                   ].join(" ")}
                   d={d}
                   key={id}
-                  onClick={linkedCountry ? () => selectCountry(linkedCountry) : undefined}
+                  onClick={linkedCountry ? () => selectCountry(linkedCountry) : clearCountry}
                   role={linkedCountry ? "button" : "img"}
                   tabIndex={linkedCountry ? 0 : -1}
                 />
