@@ -15,6 +15,9 @@ This folder is the handoff source for the current Command Center V2 build. It co
 ## Current App Status
 
 - React/Vite frontend exists and builds.
+- Main GUI is dark mode and map-first.
+- World map is now a real local SVG map with pan/zoom, country click targets, selected-country focus, and projected interaction arrows.
+- Country drill-down appears as a right-side overlay inside the map after country selection.
 - Tauri desktop shell exists and compiles.
 - SQLite schema exists in `src-tauri/schema.sql`.
 - OpenRouter chat integration exists in the frontend with local settings support.
@@ -31,3 +34,4 @@ npm run tauri dev
 ```
 
 The desktop dev command compiled and launched `target/debug/command-center`.
+The latest frontend build after the map/dark-mode iteration passed with `npm run build`.

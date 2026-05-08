@@ -127,3 +127,11 @@ source "$HOME/.cargo/env" && npm run tauri dev
 ## Current Runtime Note
 
 During verification, `npm run tauri dev` used `http://localhost:1421/` because another Vite server was already using `1420`.
+
+During the latest browser GUI iteration, `npm run dev` used:
+
+```text
+http://localhost:1422/
+```
+
+because both `1420` and `1421` were already occupied.

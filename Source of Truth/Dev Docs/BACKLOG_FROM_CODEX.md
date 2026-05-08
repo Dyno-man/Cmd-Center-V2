@@ -43,18 +43,18 @@ This is the list of work I believe should be added or completed next, based on t
 
 ## Product Features To Complete
 
-1. Real map engine.
-   - Current map is a CSS approximation.
-   - Add a real map library or canvas/SVG geographic projection.
-   - Support click targets for all countries.
-   - Support zooming/centering selected country.
+1. Expand the real map engine.
+   - Current map uses local SVG geography and supports zoom/pan/click for modeled sample countries.
+   - Replace the temporary `COUNTRY_ID_BY_CODE` mapping with complete ISO/country metadata.
+   - Support click targets for all countries in the dataset.
+   - Add country bounds/geometry metadata to the app data model instead of keeping map lookup logic in the component.
 
 2. Real country database.
    - Add country metadata: ISO code, name, continent, centroid, geometry/bounds.
    - Use this for filters, map rendering, and article classification.
 
 3. Dynamic interaction arrows.
-   - Current arrows are sample data.
+   - Current arrows render on the real map but still use sample interaction data.
    - Generate arrows from article relationships, trade/policy tensions, supply-chain links, and cross-country effects.
    - Intensity should reflect interaction count and confidence.
 
@@ -114,7 +114,7 @@ This is the list of work I believe should be added or completed next, based on t
 
 5. Add UI polish and responsiveness.
    - Verify desktop and smaller screens with screenshots.
-   - Replace temporary map visuals.
+   - Continue refining map/panel responsive behavior, especially smaller screens.
    - Replace temporary Tauri icon.
    - Improve scroll handling in country and chat panels.
 

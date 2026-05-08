@@ -8,6 +8,7 @@
 - Local database: SQLite through `rusqlite`.
 - LLM gateway: OpenRouter.
 - Icons: lucide-react.
+- Map rendering: local SVG geography through `world-atlas`, `topojson-client`, `d3-geo`, `d3-zoom`, `d3-selection`, and `d3-transition`.
 
 ## Frontend Shape
 
@@ -22,10 +23,32 @@
 Main components:
 
 - `MarketStrip` renders major index cards.
-- `WorldMap` renders current map, pins, and interaction arrows.
+- `WorldMap` renders a local SVG world map, country click targets, pins, pan/zoom controls, selected-country focus, and interaction arrows.
 - `FilterBar` renders news/continent filters.
-- `CountryPanel` renders country, category, and article drill-in.
+- `CountryPanel` renders country, category, and article drill-in. It is mounted by `App.tsx` as an overlay inside the map only when a country is selected.
 - `ChatPanel` renders OpenRouter settings, context bin, messages, slash commands, and composer.
+
+## GUI And Map Behavior
+
+- The app uses a dark-mode dashboard shell.
+- The map owns the main workspace below the market strip. The country panel is not a permanent right column in the dashboard grid.
+- Selecting a country:
+  - clears any selected category/article;
+  - highlights the country;
+  - animates the map so the selected country is centered left;
+  - opens the country panel centered on the right side inside the map.
+- Clicking the ocean or an unlinked/off-country area:
+  - closes the country panel;
+  - clears country/category/article selection;
+  - resets the map to the world view.
+- Map controls:
+  - zoom in;
+  - zoom out;
+  - reset world view;
+  - drag pan;
+  - mouse wheel zoom.
+- Interaction arrows are projected between the source/target country centroids. Arrow color comes from correlation and visual intensity comes from the interaction intensity value.
+- Current country geometry comes from `world-atlas`; the app still uses sample country metadata and a small `COUNTRY_ID_BY_CODE` mapping in `WorldMap` for the currently modeled countries.
 
 ## Data Flow
 

@@ -9,7 +9,8 @@ Command Center V2 is a desktop-first market intelligence dashboard. It should he
 - Main view is a world map with market interaction arrows.
 - Top strip shows major stock indexes.
 - Filters control what news/interactions appear on the map.
-- Clicking a country zooms/centers that country and opens a country information panel.
+- Clicking a country zooms it to the center-left of the map and opens a country information panel centered on the right side inside the map.
+- Clicking off the selected country closes the country panel and resets the map back to the world view.
 - Country panel lists market categories with score colors:
   - Red: `score <= 50`
   - Yellow: `50 < score <= 75`
@@ -27,6 +28,10 @@ Command Center V2 is a desktop-first market intelligence dashboard. It should he
 
 - Stack: Tauri 2 + React 19 + Vite 7 + TypeScript + SQLite via `rusqlite`.
 - Browser MVP is functional with sample data and localStorage fallback.
+- Main GUI is dark mode.
+- `WorldMap` now uses a real local SVG world map built from `world-atlas`, `topojson-client`, `d3-geo`, and `d3-zoom`.
+- Map supports country click targets, visible country pins, drag pan, wheel zoom, explicit zoom/reset controls, selected-country highlighting, and projected interaction arrows.
+- Country drill-down is not a permanent layout column. It appears only after selecting a country and overlays the right side of the map.
 - Native Tauri commands exist for snapshots, settings, refresh, skills, plans, and SQLite initialization.
 - Desktop shell compiles and launches.
 - OpenRouter calls are currently made from the frontend service layer, using `.env` or settings-entered key.
@@ -35,8 +40,8 @@ Command Center V2 is a desktop-first market intelligence dashboard. It should he
 ## Key Files
 
 - `src/App.tsx` - top-level dashboard state and interaction wiring.
-- `src/components/WorldMap.tsx` - map surface, pins, and arrows.
-- `src/components/CountryPanel.tsx` - country/category/article drill-in.
+- `src/components/WorldMap.tsx` - local SVG map engine, pins, zoom/pan, country selection, and arrows.
+- `src/components/CountryPanel.tsx` - country/category/article drill-in rendered as a map overlay from `App.tsx`.
 - `src/components/ChatPanel.tsx` - chat UI, settings, slash commands.
 - `src/services/storage.ts` - Tauri command boundary plus browser fallback.
 - `src/services/openRouter.ts` - OpenRouter chat request/fallback.
@@ -50,4 +55,5 @@ Command Center V2 is a desktop-first market intelligence dashboard. It should he
 - Rust was installed with rustup.
 - Tauri Linux packages were installed manually by the user after sudo was required.
 - `npm run tauri dev` used port `1421` because an earlier Vite dev server was already using `1420`.
+- During the map iteration, `npm run dev` used `http://localhost:1422/` because ports `1420` and `1421` were already occupied.
 - Git is not currently usable in this workspace; `git status` reports that `.git` is not valid repo metadata.
