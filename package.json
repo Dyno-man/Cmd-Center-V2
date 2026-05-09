@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "tsc && vite build",
+    "db": "python3 scripts/db_viewer.py",
     "preview": "vite preview --host 0.0.0.0",
     "tauri": "tauri"
   },

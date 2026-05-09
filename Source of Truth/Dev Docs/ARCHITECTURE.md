@@ -7,6 +7,7 @@
 - Native layer: Rust.
 - Local database: SQLite through `rusqlite`.
 - LLM gateway: OpenRouter.
+- First live data sources: CoinGecko and GDELT public APIs.
 - Icons: lucide-react.
 - Assistant markdown rendering: `react-markdown` with `remark-gfm`.
 - Map rendering: local SVG geography through `world-atlas`, `topojson-client`, `d3-geo`, `d3-zoom`, `d3-selection`, and `d3-transition`.
@@ -27,7 +28,8 @@ Main components:
 - `WorldMap` renders a local SVG world map, country click targets, pins, pan/zoom controls, selected-country focus, and interaction arrows.
 - `FilterBar` renders news/continent filters.
 - `CountryPanel` renders country, category, and article drill-in. It is mounted by `App.tsx` as an overlay inside the map only when a country is selected.
-- `ChatPanel` renders OpenRouter settings, context bin, messages, slash commands, markdown-formatted assistant replies, composer, and expanded chat modal.
+- `ChatPanel` renders OpenRouter settings, saved chat thread controls, context bin, messages, slash commands, markdown-formatted assistant replies, composer, and expanded chat modal.
+- `liveData` remains the browser fallback for no-key live sources and maps them into the current snapshot-shaped frontend model.
 
 ## GUI And Map Behavior
 
@@ -64,19 +66,31 @@ Refresh:
 
 1. User clicks Refresh.
 2. Frontend calls `refreshData(snapshot)`.
-3. Native command currently updates refresh timestamp.
-4. Browser fallback simulates index changes.
-5. Future work should run RSS/news, finance, dedupe, summarization, and scoring jobs.
+3. In Tauri, `refresh_live_data` fetches CoinGecko and GDELT from Rust.
+4. Native refresh records `ingestion_runs`, upserts `market_indexes`, upserts deduped `articles`, recomputes `category_scores`, and returns the same snapshot shape the UI already consumes.
+5. In browser mode, or if the native command fails, `fetchLiveSnapshot` attempts the same no-key sources from the frontend service layer.
+6. If all live requests fail, the app falls back to the existing local refresh behavior.
+7. Future work should add RSS/news, broader finance quotes, dedupe improvements, summarization, and LLM scoring jobs.
+
+Live data mapping:
+
+- CoinGecko uses the no-key `/coins/markets` endpoint for BTC, ETH, SOL, and BNB.
+- GDELT uses six English article discovery lanes: energy, shipping, trade, monetary policy, semiconductors, and conflict.
+- Native provider requests include an explicit app user-agent, browser-like accept headers, sequential GDELT lane spacing, and retry/backoff handling for rate limits.
+- GDELT rows are normalized with country hints, category inference, lane evidence score, market relevance, accepted/rejected status, rejection reason, and canonical URL dedupe.
+- GDELT can store worldwide article rows, but the current map still only renders countries present in the frontend country snapshot.
+- Clean desktop snapshots are normalized with the sample country shell so the map remains populated before live data arrives.
 
 Chat:
 
 1. User attaches context from country/category/article views.
 2. User sends chat message or slash command. `Enter` submits and `Shift+Enter` inserts a newline.
 3. `ChatPanel` expands markdown skill prompts when command matches a skill.
-4. `sendOpenRouterChat` calls OpenRouter if key exists.
-5. If no key exists, fallback response is returned.
-6. `/finalize` saves the response as a plan.
-7. `/update_plan "plan name"` loads a saved plan.
+4. `sendOpenRouterChat` first invokes the native `send_openrouter_chat` command.
+5. Native OpenRouter calls use saved settings and a plain cause/effect/action system prompt. If native invocation is unavailable, the browser fallback service runs.
+6. If no key exists, fallback response is returned.
+7. `/finalize` saves the response as a plan.
+8. `/update_plan "plan name"` loads a saved plan.
 
 Chat UI behavior:
 
@@ -84,6 +98,8 @@ Chat UI behavior:
 - User messages remain plain preserved text.
 - Long messages wrap inside message bubbles and scroll inside the chat message area instead of resizing the dashboard or map.
 - The chat can open an in-app modal for longer conversations; the modal shares the same message, context, settings, busy, and draft state as the right-side panel.
+- The chat header includes a new-chat control and a conversation selector. Starting a new chat creates a new thread and keeps the old transcript in SQLite.
+- Assistant recommendations should explain: what is known, why it matters, what may happen next, what to do, and what would prove it wrong.
 
 ## Native Layer
 
@@ -105,6 +121,12 @@ Current native persistence:
 
 - Snapshot JSON stored in `app_state`.
 - App settings stored in `settings`.
+- CoinGecko market strip rows stored in `market_indexes`.
+- GDELT discovery articles stored in `articles`.
+- GDELT article rows include provider, lane, canonical key, relevance score, lane evidence score, accepted/rejected flag, and rejection reason.
+- Heuristic country/category discovery scores stored in `category_scores`.
+- Provider fetch attempts stored in `ingestion_runs`.
+- Chat threads stored in `chat_threads`; transcript rows stored in `chat_messages`.
 - Plans stored in `plans` and mirrored as markdown files in the app data `plans/` directory.
 
 ## SQLite Schema Intent
@@ -112,8 +134,10 @@ Current native persistence:
 Tables are designed for the planned full app:
 
 - `articles` stores scraped/ingested articles and LLM-generated impact metadata.
+- `market_indexes` stores top-strip market quote rows.
 - `category_scores` stores country/category scoring outputs and evidence JSON.
 - `chat_messages` stores chat history.
+- `chat_threads` stores saved conversation metadata and lets the UI switch between transcripts.
 - `plans` stores finalized trading plans and updates.
 - `skills` stores markdown skill content.
 - `ingestion_runs` tracks API/RSS/scrape cycles.

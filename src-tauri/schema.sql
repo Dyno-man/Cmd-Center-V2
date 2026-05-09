@@ -24,8 +24,19 @@ create table if not exists skills (
   updated_at text not null
 );
 
+create table if not exists market_indexes (
+  symbol text primary key,
+  name text not null,
+  value text not null,
+  change real not null,
+  updated_at text not null
+);
+
 create table if not exists articles (
   id text primary key,
+  canonical_key text,
+  provider text not null default 'unknown',
+  query_lane text,
   title text not null,
   source text not null,
   url text not null unique,
@@ -35,9 +46,17 @@ create table if not exists articles (
   summary text not null,
   market_reason text not null,
   weight real not null,
+  market_relevance integer not null default 0,
+  lane_evidence_score integer not null default 0,
+  accepted_for_analysis integer not null default 1,
+  rejected_reason text,
   raw_content text,
   created_at text not null
 );
+
+create index if not exists idx_articles_canonical_key on articles(canonical_key);
+create index if not exists idx_articles_provider_lane on articles(provider, query_lane);
+create index if not exists idx_articles_accepted on articles(accepted_for_analysis, published_at desc);
 
 create table if not exists category_scores (
   id text primary key,
@@ -52,10 +71,20 @@ create table if not exists category_scores (
 
 create table if not exists chat_messages (
   id text primary key,
+  thread_id text not null default 'default',
   role text not null,
   content text not null,
   context_ids_json text not null default '[]',
   created_at text not null
+);
+
+create table if not exists chat_threads (
+  id text primary key,
+  title text not null,
+  summary text,
+  archived integer not null default 0,
+  created_at text not null,
+  updated_at text not null
 );
 
 create table if not exists ingestion_runs (

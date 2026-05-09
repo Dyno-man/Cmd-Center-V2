@@ -1,20 +1,34 @@
-import { Bot, FilePlus2, Maximize2, Send, Settings, X } from "lucide-react";
+import { Bot, FilePlus2, Maximize2, MessageSquarePlus, Send, Settings, X } from "lucide-react";
 import { type KeyboardEvent, useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { loadPlan, loadSettings, loadSkills, savePlan, saveSettings } from "../services/storage";
 import { sendOpenRouterChat } from "../services/openRouter";
-import type { AppSettings, ChatMessage, Skill } from "../types/domain";
+import type { AppSettings, ChatMessage, ChatThread, Skill } from "../types/domain";
 
 interface Props {
+  activeThreadId: string;
   messages: ChatMessage[];
+  threads: ChatThread[];
   context: { label: string; content: string }[];
   onMessage: (message: ChatMessage) => void;
   onAssistant: (content: string) => void;
   onClearContext: () => void;
+  onNewChat: () => void;
+  onSelectThread: (threadId: string) => void;
 }
 
-export function ChatPanel({ messages, context, onMessage, onAssistant, onClearContext }: Props) {
+export function ChatPanel({
+  activeThreadId,
+  messages,
+  threads,
+  context,
+  onMessage,
+  onAssistant,
+  onClearContext,
+  onNewChat,
+  onSelectThread
+}: Props) {
   const [draft, setDraft] = useState("");
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [skills, setSkills] = useState<Skill[]>([]);
@@ -83,18 +97,22 @@ export function ChatPanel({ messages, context, onMessage, onAssistant, onClearCo
   const chatSurface = (
     <ChatSurface
       busy={busy}
+      activeThreadId={activeThreadId}
       context={context}
       draft={draft}
       messages={messages}
+      onNewChat={onNewChat}
       onClearContext={onClearContext}
       onDraftChange={setDraft}
       onExpand={() => setExpanded(true)}
       onKeyDown={handleComposerKeyDown}
+      onSelectThread={onSelectThread}
       onSettingsChange={setSettings}
       onSettingsOpenChange={setSettingsOpen}
       onSubmit={() => void submit()}
       settings={settings}
       settingsOpen={settingsOpen}
+      threads={threads}
     />
   );
 
@@ -106,19 +124,23 @@ export function ChatPanel({ messages, context, onMessage, onAssistant, onClearCo
           <section className="chat-modal" onClick={(event) => event.stopPropagation()}>
             <ChatSurface
               busy={busy}
+              activeThreadId={activeThreadId}
               context={context}
               draft={draft}
               expanded
               messages={messages}
+              onNewChat={onNewChat}
               onClearContext={onClearContext}
               onClose={() => setExpanded(false)}
               onDraftChange={setDraft}
               onKeyDown={handleComposerKeyDown}
+              onSelectThread={onSelectThread}
               onSettingsChange={setSettings}
               onSettingsOpenChange={setSettingsOpen}
               onSubmit={() => void submit()}
               settings={settings}
               settingsOpen={settingsOpen}
+              threads={threads}
             />
           </section>
         </div>
@@ -128,6 +150,7 @@ export function ChatPanel({ messages, context, onMessage, onAssistant, onClearCo
 }
 
 interface ChatSurfaceProps {
+  activeThreadId: string;
   busy: boolean;
   context: { label: string; content: string }[];
   draft: string;
@@ -138,14 +161,18 @@ interface ChatSurfaceProps {
   onDraftChange: (value: string) => void;
   onExpand?: () => void;
   onKeyDown: (event: KeyboardEvent<HTMLTextAreaElement>) => void;
+  onNewChat: () => void;
+  onSelectThread: (threadId: string) => void;
   onSettingsChange: (settings: AppSettings) => void;
   onSettingsOpenChange: (open: boolean | ((value: boolean) => boolean)) => void;
   onSubmit: () => void;
   settings: AppSettings | null;
   settingsOpen: boolean;
+  threads: ChatThread[];
 }
 
 function ChatSurface({
+  activeThreadId,
   busy,
   context,
   draft,
@@ -156,18 +183,26 @@ function ChatSurface({
   onDraftChange,
   onExpand,
   onKeyDown,
+  onNewChat,
+  onSelectThread,
   onSettingsChange,
   onSettingsOpenChange,
   onSubmit,
   settings,
-  settingsOpen
+  settingsOpen,
+  threads
 }: ChatSurfaceProps) {
+  const activeThread = threads.find((thread) => thread.id === activeThreadId);
+
   return (
     <>
       <div className="chat-header">
         <Bot size={20} />
-        <h2>{expanded ? "Expanded AI Chat" : "AI Chat Room"}</h2>
+        <h2>{activeThread?.title ?? (expanded ? "Expanded AI Chat" : "AI Chat Room")}</h2>
         <div className="chat-header__actions">
+          <button aria-label="Start new chat" className="icon-button" onClick={onNewChat} type="button">
+            <MessageSquarePlus size={18} />
+          </button>
           <button aria-label="Settings" className="icon-button" onClick={() => onSettingsOpenChange((value) => !value)} type="button">
             <Settings size={18} />
           </button>
@@ -181,6 +216,18 @@ function ChatSurface({
             </button>
           )}
         </div>
+      </div>
+      <div className="thread-bar">
+        <label>
+          Conversation
+          <select onChange={(event) => onSelectThread(event.target.value)} value={activeThreadId}>
+            {threads.map((thread) => (
+              <option key={thread.id} value={thread.id}>
+                {thread.title}
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
       {settingsOpen && settings && (
         <form className="settings-panel" onSubmit={(event) => {

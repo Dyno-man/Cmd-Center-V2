@@ -517,9 +517,30 @@ button {
   min-height: 0;
   padding: 12px;
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  grid-template-rows: auto auto auto minmax(0, 1fr) auto;
   gap: 10px;
   overflow: hidden;
+}
+
+.thread-bar {
+  min-width: 0;
+}
+
+.thread-bar label {
+  display: grid;
+  gap: 4px;
+  color: #aeb9c3;
+  font-size: 12px;
+}
+
+.thread-bar select {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid #334657;
+  border-radius: 6px;
+  padding: 8px;
+  background: #090f15;
+  color: #e7edf3;
 }
 
 .settings-panel {
