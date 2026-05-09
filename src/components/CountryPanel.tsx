@@ -1,5 +1,6 @@
 import { ArrowLeft, Plus } from "lucide-react";
 import type { ArticleContext, CountryContext, MarketCategory, ScoreBand } from "../types/domain";
+import { describeArticleWeight, getWeightBand } from "../utils/articleWeight";
 
 interface Props {
   country: CountryContext;
@@ -25,6 +26,8 @@ export function CountryPanel({
   onAddContext
 }: Props) {
   if (selectedArticle) {
+    const weight = describeArticleWeight(selectedArticle);
+
     return (
       <aside className="country-panel">
         <PanelHeader
@@ -38,9 +41,29 @@ export function CountryPanel({
             <p>{selectedArticle.summary}</p>
             <p>{selectedArticle.marketReason}</p>
           </div>
-          <div className="detail-block detail-block--tan">
-            <h3>Weight {selectedArticle.weight.toFixed(2)}</h3>
-            <p>{selectedArticle.weightReason ?? "This article contributes to the category score based on recency, source relevance, country specificity, and direct market linkage."}</p>
+          <div className={`detail-block detail-block--weight detail-block--weight-${weight.band}`}>
+            <div className="weight-detail-header">
+              <span>Final Weight</span>
+              <strong className={`weight-badge weight-badge--${weight.band}`}>{selectedArticle.weight.toFixed(2)}</strong>
+            </div>
+            <dl className="weight-breakdown">
+              <div>
+                <dt>Calculation</dt>
+                <dd>{weight.formula}</dd>
+              </div>
+              <div>
+                <dt>Major Inputs</dt>
+                <dd>
+                  {weight.inputs.map((input) => (
+                    <span key={input}>{input}</span>
+                  ))}
+                </dd>
+              </div>
+              <div>
+                <dt>Plain English</dt>
+                <dd>{weight.plainEnglish}</dd>
+              </div>
+            </dl>
             <a href={selectedArticle.url} rel="noreferrer" target="_blank">Open original article</a>
           </div>
         </div>
@@ -68,7 +91,7 @@ export function CountryPanel({
                   <strong>{article.title}</strong>
                   <small>{article.weightReason ?? article.source}</small>
                 </span>
-                <strong>{article.weight.toFixed(2)}</strong>
+                <strong className={`weight-badge weight-badge--${getWeightBand(article.weight)}`}>{article.weight.toFixed(2)}</strong>
               </button>
             ))
           ) : (

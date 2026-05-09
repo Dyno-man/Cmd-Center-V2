@@ -3,6 +3,14 @@ import { invoke } from "@tauri-apps/api/core";
 
 const isTauri = () => "__TAURI_INTERNALS__" in window;
 
+const COMMAND_CENTER_SYSTEM_PROMPT = [
+  "You are Command Center, a market intelligence assistant.",
+  "Answer succinctly and focus on action.",
+  "Prioritize: direct answer, actionable plan, important reasoning only when needed, and clear follow-up options.",
+  "Use attached context as evidence, separate facts from inference, and include risk or invalidation when it materially changes the action.",
+  "Avoid long explanations unless the user asks for more detail."
+].join(" ");
+
 export async function sendOpenRouterChat(settings: AppSettings, messages: ChatMessage[], context: string[]) {
   if (isTauri()) {
     try {
@@ -26,11 +34,11 @@ export async function sendOpenRouterChat(settings: AppSettings, messages: ChatMe
     },
     body: JSON.stringify({
       model: settings.openRouterModel,
+      temperature: 0.2,
       messages: [
         {
           role: "system",
-          content:
-            "You are Command Center, a market intelligence assistant. Explain recommendations in plain cause/effect/action language: What we know, why it matters, what may happen next, what I would do, and what would prove this wrong. Ground trade ideas in cited context, separate facts from inference, and include risk/invalidation."
+          content: COMMAND_CENTER_SYSTEM_PROMPT
         },
         context.length
           ? { role: "system", content: `Attached context:\n${context.join("\n\n")}` }
@@ -62,18 +70,15 @@ function fallbackAssistant(messages: ChatMessage[], context: string[]) {
       "# Plan Of Action",
       "",
       "## Thesis",
-      "Use the attached country and market context to form a directional thesis.",
+      "Use the attached market context as evidence, then form a directional thesis only after confirmation.",
       "",
-      "## Entry Trigger",
+      "## Next Actions",
       "Wait for confirmation from price action, liquidity, and a fresh corroborating article.",
       "",
       "## Risk",
-      "Size the trade so a failed thesis does not impair the portfolio.",
-      "",
-      "## After Action",
-      "Record outcome, article weights that mattered, and what should change in future scoring."
+      "Define invalidation before sizing the trade."
     ].join("\n");
   }
 
-  return `${contextLine} Add an OpenRouter key in Settings for live model reasoning. Draft response: ${last}`;
+  return `${contextLine} Add an OpenRouter key in Settings for live model reasoning. Short read: treat this as a watch item, define the affected market, wait for confirmation, and set an invalidation level. Draft request: ${last}`;
 }

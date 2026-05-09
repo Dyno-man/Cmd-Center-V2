@@ -4,6 +4,8 @@ use std::{collections::HashMap, fs, path::PathBuf, time::Duration};
 use tauri::Manager;
 
 const APP_USER_AGENT: &str = "CommandCenterV2/0.1 (+https://localhost; personal market intelligence desktop app)";
+const COMMAND_CENTER_SYSTEM_PROMPT: &str = "You are Command Center, a market intelligence assistant. Answer succinctly and focus on action. Prioritize: direct answer, actionable plan, important reasoning only when needed, and clear follow-up options. Use attached context as evidence, separate facts from inference, and include risk or invalidation when it materially changes the action. Avoid long explanations unless the user asks for more detail.";
+const CONTEXT_LABEL_SYSTEM_PROMPT: &str = "Create a short context label for a market intelligence chat. Return 2 to 5 words only. No punctuation.";
 const COINGECKO_MARKETS_URL: &str = "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=bitcoin,ethereum,solana,binancecoin&order=market_cap_desc&per_page=4&page=1&sparkline=false&price_change_percentage=24h&locale=en";
 const GDELT_REQUEST_INTERVAL_SECONDS: u64 = 6;
 const GDELT_LANES: [(&str, &str); 6] = [
@@ -1502,7 +1504,7 @@ async fn send_openrouter_chat(settings: AppSettings, messages: Vec<ChatMessage>,
     let mut request_messages = vec![
         serde_json::json!({
             "role": "system",
-            "content": "You are Command Center, a market intelligence assistant. Explain recommendations in plain cause/effect/action language: What we know, why it matters, what may happen next, what I would do, and what would prove this wrong. Use the pattern: Because [evidence], [market effect] is more likely, so [course of action]. Ground trade ideas in attached context, separate facts from inference, and include risk/invalidation."
+            "content": COMMAND_CENTER_SYSTEM_PROMPT
         }),
         serde_json::json!({ "role": "system", "content": context_message }),
     ];
@@ -1568,7 +1570,139 @@ fn fallback_assistant(messages: &[ChatMessage], context: &[String]) -> String {
     } else {
         "I have attached context to use as evidence."
     };
-    format!("{context_line} Add an OpenRouter key in Settings for live model reasoning. Plain read: because the evidence is still incomplete, the next market move is uncertain, so treat this as a watch item until stronger confirmation appears.")
+    format!("{context_line} Add an OpenRouter key in Settings for live model reasoning. Short read: treat this as a watch item until fresh evidence confirms direction. Next steps: define the market affected, wait for price confirmation, and set an invalidation level.")
+}
+
+#[tauri::command]
+async fn resolve_context_label(app: tauri::AppHandle, source_label: String, content: String, fallback_label: String) -> Result<String, String> {
+    let connection = open_database(&app)?;
+    let key = context_key(&source_label, &content);
+    let cached: Option<String> = connection
+        .query_row(
+            "select display_label from context_labels where context_key = ?1",
+            params![key],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|error| error.to_string())?;
+
+    if let Some(label) = cached {
+        return Ok(label);
+    }
+
+    let settings = load_settings(app.clone())?;
+    let label = summarize_context_label(&settings, &source_label, &content)
+        .await
+        .unwrap_or_else(|| clean_label(&fallback_label).unwrap_or_else(|| "Attached context".to_string()));
+    let timestamp = now();
+
+    connection
+        .execute(
+            "insert into context_labels (context_key, source_label, display_label, created_at, updated_at)
+             values (?1, ?2, ?3, ?4, ?4)
+             on conflict(context_key) do update set display_label = excluded.display_label, updated_at = excluded.updated_at",
+            params![key, source_label, label, timestamp],
+        )
+        .map_err(|error| error.to_string())?;
+
+    Ok(label)
+}
+
+async fn summarize_context_label(settings: &AppSettings, source_label: &str, content: &str) -> Option<String> {
+    if settings.open_router_api_key.trim().is_empty() {
+        return None;
+    }
+
+    let client = reqwest::Client::builder()
+        .user_agent(APP_USER_AGENT)
+        .timeout(Duration::from_secs(20))
+        .build()
+        .ok()?;
+    let response = client
+        .post("https://openrouter.ai/api/v1/chat/completions")
+        .bearer_auth(&settings.open_router_api_key)
+        .header(reqwest::header::CONTENT_TYPE, "application/json")
+        .header("HTTP-Referer", "http://localhost:1420")
+        .header("X-Title", "Command Center")
+        .json(&serde_json::json!({
+            "model": &settings.open_router_model,
+            "temperature": 0.1,
+            "max_tokens": 16,
+            "messages": [
+                { "role": "system", "content": CONTEXT_LABEL_SYSTEM_PROMPT },
+                { "role": "user", "content": format!("Title: {source_label}\nContext: {}", content.chars().take(900).collect::<String>()) }
+            ]
+        }))
+        .send()
+        .await
+        .ok()?;
+
+    if !response.status().is_success() {
+        return None;
+    }
+
+    let payload = response.json::<serde_json::Value>().await.ok()?;
+    let raw = payload.pointer("/choices/0/message/content").and_then(|value| value.as_str())?;
+    clean_label(raw)
+}
+
+fn clean_label(value: &str) -> Option<String> {
+    let cleaned = value
+        .replace(['"', '\'', '.', ':', ';'], "")
+        .split_whitespace()
+        .take(5)
+        .collect::<Vec<_>>()
+        .join(" ");
+
+    if cleaned.trim().is_empty() {
+        None
+    } else {
+        Some(
+            cleaned
+                .split_whitespace()
+                .map(|word| {
+                    let mut chars = word.chars();
+                    match chars.next() {
+                        Some(first) => format!("{}{}", first.to_uppercase(), chars.as_str()),
+                        None => String::new(),
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join(" ")
+                .chars()
+                .take(42)
+                .collect::<String>()
+                .trim()
+                .to_string(),
+        )
+    }
+}
+
+fn context_key(source_label: &str, content: &str) -> String {
+    let value = format!(
+        "{}\n{}",
+        source_label.to_lowercase().split_whitespace().collect::<Vec<_>>().join(" "),
+        content.to_lowercase().split_whitespace().collect::<Vec<_>>().join(" ").chars().take(600).collect::<String>()
+    );
+    let mut hash: u32 = 2166136261;
+    for byte in value.as_bytes() {
+        hash ^= *byte as u32;
+        hash = hash.wrapping_mul(16777619);
+    }
+    format!("ctx-{}", base36(hash))
+}
+
+fn base36(mut value: u32) -> String {
+    if value == 0 {
+        return "0".to_string();
+    }
+    let mut output = Vec::new();
+    while value > 0 {
+        let digit = (value % 36) as u8;
+        output.push(if digit < 10 { (b'0' + digit) as char } else { (b'a' + digit - 10) as char });
+        value /= 36;
+    }
+    output.iter().rev().collect()
 }
 
 #[tauri::command]
@@ -1688,6 +1822,7 @@ pub fn run() {
             load_chat_messages,
             save_chat_message,
             send_openrouter_chat,
+            resolve_context_label,
             load_skills,
             save_plan,
             load_plan,

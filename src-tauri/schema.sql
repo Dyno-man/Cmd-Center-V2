@@ -90,6 +90,14 @@ create table if not exists chat_threads (
   updated_at text not null
 );
 
+create table if not exists context_labels (
+  context_key text primary key,
+  source_label text not null,
+  display_label text not null,
+  created_at text not null,
+  updated_at text not null
+);
+
 create table if not exists ingestion_runs (
   id text primary key,
   source text not null,

@@ -16,7 +16,8 @@ import {
   saveChatMessage,
   saveSnapshot
 } from "./services/storage";
-import type { ArticleContext, ChatMessage, ChatThread, CommandCenterSnapshot, CountryContext, MarketCategory } from "./types/domain";
+import { contextKey, fallbackContextLabel, resolveContextLabel } from "./services/contextLabels";
+import type { ArticleContext, ChatContextItem, ChatMessage, ChatThread, CommandCenterSnapshot, CountryContext, MarketCategory } from "./types/domain";
 import "./styles.css";
 
 type RefreshPhase = "loading" | "archived" | "fetching" | "deduping" | "ready" | "failed";
@@ -28,7 +29,7 @@ export default function App() {
   const [selectedArticle, setSelectedArticle] = useState<ArticleContext | null>(null);
   const [activeContinents, setActiveContinents] = useState<string[]>(["North America", "Europe", "Asia", "Oceania"]);
   const [activeNewsTypes, setActiveNewsTypes] = useState<string[]>(["Financial Markets", "Policy", "Supply Chain"]);
-  const [attachedContext, setAttachedContext] = useState<{ label: string; content: string }[]>([]);
+  const [attachedContext, setAttachedContext] = useState<ChatContextItem[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   const [refreshPhase, setRefreshPhase] = useState<RefreshPhase>("loading");
@@ -97,9 +98,16 @@ export default function App() {
   }
 
   function addContext(label: string, content: string) {
+    const id = contextKey(label, content);
     setAttachedContext((items) => {
-      if (items.some((item) => item.label === label)) return items;
-      return [...items, { label, content }];
+      if (items.some((item) => item.id === id)) return items;
+      return [...items, { id, label: fallbackContextLabel(label), sourceLabel: label, content }];
+    });
+
+    void resolveContextLabel(label, content).then((resolvedLabel) => {
+      setAttachedContext((items) =>
+        items.map((item) => (item.id === id ? { ...item, label: resolvedLabel } : item))
+      );
     });
   }
 

@@ -68,6 +68,13 @@ export interface ChatThread {
   updatedAt: string;
 }
 
+export interface ChatContextItem {
+  id: string;
+  label: string;
+  sourceLabel: string;
+  content: string;
+}
+
 export interface Skill {
   name: string;
   description: string;

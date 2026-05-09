@@ -22,8 +22,6 @@ type CountryFeature = Feature<Geometry, { name?: string }> & { id?: string | num
 type ArrowModel = InteractionArrow & {
   d: string;
   markerId: string;
-  strokeWidth: number;
-  opacity: number;
 };
 
 const WIDTH = 1000;
@@ -33,6 +31,45 @@ const COUNTRY_ID_BY_CODE: Record<string, string> = {
   CHN: "156",
   DEU: "276",
   USA: "840"
+};
+
+const CONTINENT_ANCHORS: Record<string, Record<"east" | "north" | "south" | "west", [number, number]>> = {
+  Africa: {
+    east: [51.0, 10.0],
+    north: [10.0, 36.0],
+    south: [19.0, -34.5],
+    west: [-17.5, 14.5]
+  },
+  Asia: {
+    east: [139.5, 35.8],
+    north: [82.0, 55.0],
+    south: [103.8, 1.3],
+    west: [35.0, 34.5]
+  },
+  Europe: {
+    east: [29.0, 45.0],
+    north: [10.5, 59.8],
+    south: [14.5, 37.5],
+    west: [-9.5, 38.8]
+  },
+  "North America": {
+    east: [-66.0, 44.0],
+    north: [-96.0, 58.0],
+    south: [-97.0, 25.5],
+    west: [-124.5, 38.0]
+  },
+  Oceania: {
+    east: [153.5, -28.0],
+    north: [134.0, -12.5],
+    south: [115.5, -34.5],
+    west: [113.0, -23.5]
+  },
+  "South America": {
+    east: [-35.0, -8.0],
+    north: [-75.0, 10.5],
+    south: [-71.0, -53.0],
+    west: [-80.5, -12.0]
+  }
 };
 
 const topology = countriesTopology as unknown as Topology;
@@ -55,12 +92,68 @@ function projectedPoint(country: CountryContext) {
   return projection(country.centroid) ?? [WIDTH / 2, HEIGHT / 2];
 }
 
+function featureCenter(mapFeature: CountryFeature | undefined, fallback: [number, number]) {
+  if (!mapFeature) return fallback;
+  const bounds = path.bounds(mapFeature as GeoPermissibleObjects);
+  return [(bounds[0][0] + bounds[1][0]) / 2, (bounds[0][1] + bounds[1][1]) / 2] as [number, number];
+}
+
+function featureEdgeAnchor(
+  mapFeature: CountryFeature | undefined,
+  fallback: [number, number],
+  toward: [number, number]
+) {
+  if (!mapFeature) return fallback;
+
+  const bounds = path.bounds(mapFeature as GeoPermissibleObjects);
+  const center = featureCenter(mapFeature, fallback);
+  const dx = toward[0] - center[0];
+  const dy = toward[1] - center[1];
+  const halfWidth = Math.max(1, (bounds[1][0] - bounds[0][0]) / 2);
+  const halfHeight = Math.max(1, (bounds[1][1] - bounds[0][1]) / 2);
+  const scale = Math.min(
+    dx === 0 ? Number.POSITIVE_INFINITY : halfWidth / Math.abs(dx),
+    dy === 0 ? Number.POSITIVE_INFINITY : halfHeight / Math.abs(dy)
+  );
+  if (!Number.isFinite(scale)) return center;
+
+  return [center[0] + dx * scale * 0.92, center[1] + dy * scale * 0.92] as [number, number];
+}
+
+function continentAnchor(continent: string, toward: [number, number]) {
+  const anchors = CONTINENT_ANCHORS[continent];
+  if (!anchors) return null;
+
+  const projectedAnchors = Object.entries(anchors)
+    .map(([edge, lonLat]) => {
+      const point = projection(lonLat);
+      return point ? { edge, point } : null;
+    })
+    .filter((anchor): anchor is { edge: string; point: [number, number] } => anchor !== null);
+  if (!projectedAnchors.length) return null;
+
+  const center = projectedAnchors.reduce<[number, number]>(
+    (total, anchor) => [total[0] + anchor.point[0], total[1] + anchor.point[1]],
+    [0, 0]
+  );
+  center[0] /= projectedAnchors.length;
+  center[1] /= projectedAnchors.length;
+
+  const dx = toward[0] - center[0];
+  const dy = toward[1] - center[1];
+  const preferredEdge = Math.abs(dx) >= Math.abs(dy)
+    ? dx >= 0 ? "east" : "west"
+    : dy >= 0 ? "south" : "north";
+
+  return projectedAnchors.find((anchor) => anchor.edge === preferredEdge)?.point ?? null;
+}
+
 function arcPath(from: [number, number], to: [number, number], lift: number) {
   const dx = to[0] - from[0];
   const dy = to[1] - from[1];
   const distance = Math.sqrt(dx * dx + dy * dy);
   const midX = (from[0] + to[0]) / 2;
-  const midY = (from[1] + to[1]) / 2 - Math.max(36, distance * lift);
+  const midY = (from[1] + to[1]) / 2 - Math.max(22, distance * lift);
   return `M ${from[0]} ${from[1]} Q ${midX} ${midY} ${to[0]} ${to[1]}`;
 }
 
@@ -100,18 +193,23 @@ export function WorldMap({ countries, interactions, selectedCountryCode, onClear
           const toCountry = countriesByCode.get(interaction.to);
           if (!fromCountry || !toCountry) return null;
 
-          const from = projectedPoint(fromCountry);
-          const to = projectedPoint(toCountry);
+          const fromFallback = projectedPoint(fromCountry);
+          const toFallback = projectedPoint(toCountry);
+          const fromFeature = countryFeatureByCode.get(fromCountry.code);
+          const toFeature = countryFeatureByCode.get(toCountry.code);
+          const fromCenter = featureCenter(fromFeature, fromFallback);
+          const toCenter = featureCenter(toFeature, toFallback);
+          const from = continentAnchor(fromCountry.continent, toCenter) ?? featureEdgeAnchor(fromFeature, fromFallback, toCenter);
+          const to = continentAnchor(toCountry.continent, fromCenter) ?? featureEdgeAnchor(toFeature, toFallback, fromCenter);
+
           return {
             ...interaction,
-            d: arcPath(from, to, index % 2 === 0 ? 0.22 : -0.16),
-            markerId: `arrow-head-${interaction.id}`,
-            strokeWidth: 1.8 + interaction.intensity * 4.2,
-            opacity: 0.34 + interaction.intensity * 0.62
+            d: arcPath(from, to, index % 2 === 0 ? 0.12 : -0.09),
+            markerId: `arrow-head-${interaction.id}`
           };
         })
         .filter((arrow): arrow is ArrowModel => arrow !== null),
-    [countriesByCode, interactions]
+    [countriesByCode, countryFeatureByCode, interactions]
   );
 
   const applyZoom = useCallback((nextTransform: ZoomTransform) => {
@@ -211,26 +309,19 @@ export function WorldMap({ countries, interactions, selectedCountryCode, onClear
       </div>
       <svg className="map-svg" ref={svgRef} role="img" viewBox={`0 0 ${WIDTH} ${HEIGHT}`}>
         <defs>
-          <filter id="arrow-glow" x="-35%" y="-35%" width="170%" height="170%">
-            <feGaussianBlur result="blur" stdDeviation="2.4" />
-            <feMerge>
-              <feMergeNode in="blur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
           {arrowModels.map((arrow) => (
             <marker
               className={`map-arrow-head map-arrow-head--${arrow.correlation}`}
               id={arrow.markerId}
               key={arrow.markerId}
-              markerHeight="8"
-              markerWidth="10"
+              markerHeight="5"
+              markerWidth="7"
               orient="auto"
-              refX="9"
-              refY="4"
-              viewBox="0 0 10 8"
+              refX="6.4"
+              refY="2.5"
+              viewBox="0 0 7 5"
             >
-              <path d="M 0 0 L 10 4 L 0 8 z" />
+              <path d="M 0 0 L 7 2.5 L 0 5 z" />
             </marker>
           ))}
         </defs>
@@ -267,10 +358,8 @@ export function WorldMap({ countries, interactions, selectedCountryCode, onClear
               <path
                 className={`map-arrow map-arrow--${arrow.correlation}`}
                 d={arrow.d}
-                filter="url(#arrow-glow)"
                 key={arrow.id}
                 markerEnd={`url(#${arrow.markerId})`}
-                style={{ opacity: arrow.opacity, strokeWidth: arrow.strokeWidth }}
               >
                 <title>{arrow.label}</title>
               </path>
