@@ -58,6 +58,15 @@ export interface ChatMessage {
   contextIds?: string[];
 }
 
+export interface ChatThread {
+  id: string;
+  title: string;
+  summary?: string | null;
+  archived: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Skill {
   name: string;
   description: string;

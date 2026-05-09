@@ -6,8 +6,17 @@ import { FilterBar } from "./components/FilterBar";
 import { MarketStrip } from "./components/MarketStrip";
 import { WorldMap } from "./components/WorldMap";
 import { sampleSnapshot } from "./data/sampleData";
-import { appendMessage, loadSnapshot, refreshData, saveSnapshot } from "./services/storage";
-import type { ArticleContext, ChatMessage, CommandCenterSnapshot, CountryContext, MarketCategory } from "./types/domain";
+import {
+  appendMessage,
+  createChatThread,
+  loadChatMessages,
+  loadChatThreads,
+  loadSnapshot,
+  refreshData,
+  saveChatMessage,
+  saveSnapshot
+} from "./services/storage";
+import type { ArticleContext, ChatMessage, ChatThread, CommandCenterSnapshot, CountryContext, MarketCategory } from "./types/domain";
 import "./styles.css";
 
 export default function App() {
@@ -19,9 +28,20 @@ export default function App() {
   const [activeNewsTypes, setActiveNewsTypes] = useState<string[]>(["Financial Markets", "Policy", "Supply Chain"]);
   const [attachedContext, setAttachedContext] = useState<{ label: string; content: string }[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [chatThreads, setChatThreads] = useState<ChatThread[]>([]);
+  const [activeThreadId, setActiveThreadId] = useState("default");
 
   useEffect(() => {
-    loadSnapshot().then(setSnapshot);
+    async function loadInitialState() {
+      const [loadedSnapshot, threads] = await Promise.all([loadSnapshot(), loadChatThreads()]);
+      const activeThread = threads[0] ?? (await createChatThread("Current Chat"));
+      const messages = await loadChatMessages(activeThread.id);
+      setActiveThreadId(activeThread.id);
+      setChatThreads(threads.length ? threads : [activeThread]);
+      setSnapshot({ ...loadedSnapshot, chat: messages.length ? messages : loadedSnapshot.chat });
+    }
+
+    void loadInitialState();
   }, []);
 
   useEffect(() => {
@@ -59,6 +79,7 @@ export default function App() {
 
   function addMessage(message: ChatMessage) {
     setSnapshot((current) => appendMessage(current, message));
+    void saveChatMessage(activeThreadId, message).then(loadAndSetThreads);
   }
 
   function addAssistant(content: string) {
@@ -77,6 +98,24 @@ export default function App() {
     } finally {
       setRefreshing(false);
     }
+  }
+
+  async function loadAndSetThreads() {
+    setChatThreads(await loadChatThreads());
+  }
+
+  async function startNewChat() {
+    const thread = await createChatThread();
+    setChatThreads((current) => [thread, ...current]);
+    setActiveThreadId(thread.id);
+    setSnapshot((current) => ({ ...current, chat: [] }));
+    setAttachedContext([]);
+  }
+
+  async function selectChatThread(threadId: string) {
+    const messages = await loadChatMessages(threadId);
+    setActiveThreadId(threadId);
+    setSnapshot((current) => ({ ...current, chat: messages }));
   }
 
   return (
@@ -126,11 +165,15 @@ export default function App() {
         </div>
       </section>
       <ChatPanel
+        activeThreadId={activeThreadId}
         context={attachedContext}
         messages={snapshot.chat}
         onAssistant={addAssistant}
         onClearContext={() => setAttachedContext([])}
         onMessage={addMessage}
+        onNewChat={startNewChat}
+        onSelectThread={selectChatThread}
+        threads={chatThreads}
       />
     </main>
   );

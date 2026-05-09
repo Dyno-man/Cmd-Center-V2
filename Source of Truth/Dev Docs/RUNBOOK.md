@@ -97,6 +97,33 @@ cargo check
 
 Expected result: Rust crate compiles.
 
+## Inspect SQLite Rows
+
+The desktop database is stored at:
+
+```text
+/home/grant/.local/share/com.commandcenter.desktop/command_center.sqlite3
+```
+
+If the `sqlite3` CLI is not installed, use Python's built-in SQLite module:
+
+```bash
+python3 - <<'PY'
+import sqlite3
+path = "/home/grant/.local/share/com.commandcenter.desktop/command_center.sqlite3"
+conn = sqlite3.connect(path)
+conn.row_factory = sqlite3.Row
+
+for table in ["ingestion_runs", "articles", "category_scores", "chat_threads", "chat_messages"]:
+    print(f"\n--- {table} ---")
+    rows = conn.execute(f"select * from {table} order by rowid desc limit 10").fetchall()
+    if not rows:
+        print("No rows")
+    for row in rows:
+        print(dict(row))
+PY
+```
+
 ## OpenRouter Setup
 
 Option 1: local `.env`
@@ -115,6 +142,8 @@ VITE_OPENROUTER_MODEL=openai/gpt-4.1-mini
 Option 2: in-app settings panel.
 
 The in-app key currently persists locally. Long term, OpenRouter calls should move behind Tauri commands so the key is not exposed in frontend runtime code.
+
+OpenRouter calls now prefer the native Tauri command. The browser service remains available when running outside Tauri.
 
 ## Useful Commands
 

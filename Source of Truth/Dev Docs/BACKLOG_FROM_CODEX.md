@@ -4,18 +4,19 @@ This is the list of work I believe should be added or completed next, based on t
 
 ## Highest Priority
 
-1. Move OpenRouter calls behind Tauri commands.
-   - Reason: API keys should not live in browser runtime code for the desktop app.
-   - Add native command for chat completion.
-   - Store/use OpenRouter settings from SQLite.
-   - Keep frontend service as a thin invoke wrapper.
+1. Finish hardening native OpenRouter chat.
+   - Native `send_openrouter_chat` now exists and the frontend calls it first.
+   - Reason for continued work: add clearer model/provider errors, keychain storage, and tests.
+   - Keep frontend service only as browser fallback.
 
 2. Replace snapshot persistence with normalized SQLite reads/writes.
+   - Live market rows, GDELT articles, category scores, and ingestion runs now persist in SQLite during native refresh.
    - Use the existing schema instead of storing most state as one JSON snapshot.
-   - Add Rust query functions for countries, articles, category scores, chat messages, plans, and settings.
+   - Add Rust query functions for countries, chat messages, plans, and settings.
    - Keep snapshot only as a temporary compatibility layer until all UI queries are native-backed.
 
 3. Implement RSS ingestion.
+   - A richer live GDELT discovery path exists and persists normalized article rows during native refresh.
    - Add RSS source configuration.
    - Add ingestion run records.
    - Fetch RSS items on startup/refresh.
@@ -36,6 +37,7 @@ This is the list of work I believe should be added or completed next, based on t
    - Store the reasoning.
 
 6. Implement country/category scoring.
+   - Current GDELT category scoring uses accepted heuristic article rows and lane evidence.
    - Use article summaries, weights, recency, source quality, and country/category grouping.
    - Score `0` to `100`.
    - Store evidence JSON and impact summary.
@@ -59,6 +61,7 @@ This is the list of work I believe should be added or completed next, based on t
    - Intensity should reflect interaction count and confidence.
 
 4. Finance quote provider.
+   - A first CoinGecko crypto market refresh exists for BTC, ETH, SOL, and BNB.
    - Add a free finance API.
    - Cache quotes.
    - Respect rate limits.
@@ -71,7 +74,8 @@ This is the list of work I believe should be added or completed next, based on t
 
 6. Plan outcome loop.
    - `/finalize` saves a plan.
-   - Still needed: trade result entry, after-action report, success/failure status, and learned scoring adjustments.
+   - Saved chat threads now preserve full transcripts.
+   - Still needed: trade result entry, after-action report, success/failure status, transcript summaries, and learned scoring adjustments.
 
 7. Skill file loading.
    - Native command currently returns hardcoded skills.

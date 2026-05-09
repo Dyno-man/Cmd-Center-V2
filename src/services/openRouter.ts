@@ -1,6 +1,17 @@
 import type { AppSettings, ChatMessage } from "../types/domain";
+import { invoke } from "@tauri-apps/api/core";
+
+const isTauri = () => "__TAURI_INTERNALS__" in window;
 
 export async function sendOpenRouterChat(settings: AppSettings, messages: ChatMessage[], context: string[]) {
+  if (isTauri()) {
+    try {
+      return await invoke<string>("send_openrouter_chat", { settings, messages, context });
+    } catch (error) {
+      console.warn("Using browser OpenRouter fallback", error);
+    }
+  }
+
   if (!settings.openRouterApiKey) {
     return fallbackAssistant(messages, context);
   }
@@ -19,7 +30,7 @@ export async function sendOpenRouterChat(settings: AppSettings, messages: ChatMe
         {
           role: "system",
           content:
-            "You are Command Center, a market intelligence assistant. Ground trade ideas in cited context, separate facts from inference, and include risk/invalidation."
+            "You are Command Center, a market intelligence assistant. Explain recommendations in plain cause/effect/action language: What we know, why it matters, what may happen next, what I would do, and what would prove this wrong. Ground trade ideas in cited context, separate facts from inference, and include risk/invalidation."
         },
         context.length
           ? { role: "system", content: `Attached context:\n${context.join("\n\n")}` }

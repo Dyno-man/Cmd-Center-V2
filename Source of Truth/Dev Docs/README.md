@@ -20,8 +20,10 @@ This folder is the handoff source for the current Command Center V2 build. It co
 - Country drill-down appears as a right-side overlay inside the map after country selection.
 - Tauri desktop shell exists and compiles.
 - SQLite schema exists in `src-tauri/schema.sql`.
-- OpenRouter chat integration exists in the frontend with local settings support.
-- Real RSS scraping, real market-data fetching, and production scoring are not implemented yet.
+- OpenRouter chat integration prefers a native Tauri command, with frontend/browser fallback.
+- Chat conversations can be started fresh while preserving previous transcripts in SQLite.
+- CoinGecko and GDELT live fetching exist; GDELT uses six worldwide discovery lanes with heuristic relevance gating.
+- Real RSS scraping and production LLM scoring are not implemented yet.
 
 ## Important Verification Status
 

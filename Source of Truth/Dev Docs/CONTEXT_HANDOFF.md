@@ -37,10 +37,19 @@ Command Center V2 is a desktop-first market intelligence dashboard. It should he
 - Country drill-down is not a permanent layout column. It appears only after selecting a country and overlays the right side of the map.
 - Chat message overflow is contained inside the chat scroll area so long messages do not stretch the main dashboard or affect the map.
 - The right-side chat panel has an expanded modal mode that reuses the same conversation, context, settings, and composer state.
+- Refresh now attempts a live-data pass from free/no-key APIs:
+  - In Tauri, `refresh_live_data` fetches CoinGecko and GDELT from Rust, writes normalized rows to SQLite, recomputes category scores, and returns the frontend snapshot shape.
+  - In browser mode, `src/services/liveData.ts` remains a frontend fallback for the same no-key sources.
+  - CoinGecko updates the top market strip with BTC, ETH, SOL, and BNB prices/24h change.
+  - GDELT pulls recent English market/geopolitical articles through six discovery lanes: energy, shipping, trade, monetary policy, semiconductors, and conflict.
+  - Native GDELT fetches run sequentially with delay/backoff, store lane diagnostics in ingestion run notes, dedupe by canonical URL, score lane evidence, and keep accepted/rejected rows for audit.
+- Clean or empty desktop snapshots are normalized back to the sample country shell so the map remains usable before live data arrives.
 - Native Tauri commands exist for snapshots, settings, refresh, skills, plans, and SQLite initialization.
+- Chat now supports saved conversations. Starting a new chat creates a new thread and preserves the previous transcript in SQLite.
+- OpenRouter chat calls now go through a native Tauri command first, with the browser service retained as fallback.
 - Desktop shell compiles and launches.
-- OpenRouter calls are currently made from the frontend service layer, using `.env` or settings-entered key.
-- RSS scraping, finance API calls, and true scoring jobs are placeholders/future work.
+- Assistant prompting defaults to plain cause/effect/action explanations: what is known, why it matters, what may happen next, what to do, and what would prove it wrong.
+- RSS scraping and true LLM scoring jobs are placeholders/future work.
 
 ## Key Files
 
@@ -48,6 +57,7 @@ Command Center V2 is a desktop-first market intelligence dashboard. It should he
 - `src/components/WorldMap.tsx` - local SVG map engine, pins, zoom/pan, country selection, and arrows.
 - `src/components/CountryPanel.tsx` - country/category/article drill-in rendered as a map overlay from `App.tsx`.
 - `src/components/ChatPanel.tsx` - chat UI, settings, slash commands, markdown rendering, Enter-to-send composer, and expanded modal.
+- `src/services/liveData.ts` - browser fallback bridge for CoinGecko market snapshots and GDELT article discovery.
 - `src/services/storage.ts` - Tauri command boundary plus browser fallback.
 - `src/services/openRouter.ts` - OpenRouter chat request/fallback.
 - `src/data/sampleData.ts` - sample countries, categories, articles, indexes.
