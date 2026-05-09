@@ -165,6 +165,8 @@ The in-app key currently persists locally. Long term, OpenRouter calls should mo
 
 OpenRouter calls now prefer the native Tauri command. The browser service remains available when running outside Tauri.
 
+OpenRouter calls now prefer the native Tauri command. The browser service remains available when running outside Tauri.
+
 ## Useful Commands
 
 ```bash
