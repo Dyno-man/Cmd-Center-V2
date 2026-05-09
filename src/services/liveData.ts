@@ -41,6 +41,12 @@ interface GdeltArticle {
   sourcecountry?: string;
 }
 
+interface WeightResult {
+  weight: number;
+  reason: string;
+  relevance: number;
+}
+
 export async function fetchLiveSnapshot(current: CommandCenterSnapshot): Promise<CommandCenterSnapshot> {
   const [indexes, articles] = await Promise.all([
     fetchCoinGeckoMarkets().catch((error) => {
@@ -100,20 +106,25 @@ async function fetchGdeltArticles(): Promise<ArticleContext[]> {
   }
 
   const payload = (await response.json()) as { articles?: GdeltArticle[] };
-  const seen = new Set<string>();
-  return (payload.articles ?? []).flatMap((article, index) => {
+  const bestByFingerprint = new Map<string, ArticleContext & { relevance?: number }>();
+  for (const [index, article] of (payload.articles ?? []).entries()) {
     const url = article.url ?? "";
     const title = stripHtml(article.title ?? "Untitled market signal");
     const summary = stripHtml(article.snippet ?? "GDELT matched this article against the live market discovery query.");
     const countryCode = inferCountryCode(article, `${title} ${summary}`);
-    if (!countryCode || !url || seen.has(url)) return [];
-    seen.add(url);
+    if (!countryCode || !url) continue;
 
     const category = inferCategory(`${title} ${summary}`);
     const publishedAt = parseGdeltDate(article.seendate);
-    const weight = inferWeight(`${title} ${summary}`);
-
-    return [{
+    const weight = scoreArticleWeight({
+      title,
+      summary,
+      category,
+      source: article.domain ?? "GDELT",
+      countryCode,
+      publishedAt
+    });
+    const context: ArticleContext & { relevance?: number } = {
       id: `gdelt-${countryCode.toLowerCase()}-${index}-${hashish(url)}`,
       title,
       source: article.domain ?? "GDELT",
@@ -123,9 +134,18 @@ async function fetchGdeltArticles(): Promise<ArticleContext[]> {
       category,
       summary,
       marketReason: marketReasonFor(category, countryCode),
-      weight
-    }];
-  });
+      weight: weight.weight,
+      weightReason: weight.reason,
+      relevance: weight.relevance
+    };
+    const fingerprint = articleFingerprint(context);
+    const existing = bestByFingerprint.get(fingerprint);
+    if (!existing || (context.relevance ?? 0) > (existing.relevance ?? 0)) {
+      bestByFingerprint.set(fingerprint, context);
+    }
+  }
+
+  return [...bestByFingerprint.values()].map(({ relevance: _relevance, ...article }) => article);
 }
 
 function mergeLiveArticles(countries: CountryContext[], articles: ArticleContext[]): CountryContext[] {
@@ -155,16 +175,23 @@ function buildCategories(countryCode: string, articles: ArticleContext[]): Marke
 
   return [...groups.entries()]
     .map(([label, group]) => {
-      const averageWeight = group.reduce((total, article) => total + article.weight, 0) / group.length;
-      const score = Math.min(92, Math.round(46 + group.length * 7 + averageWeight * 12));
+      const sorted = group.sort((a, b) => b.weight - a.weight);
+      const averageWeight = sorted.reduce((total, article) => total + article.weight, 0) / sorted.length;
+      const maxWeight = sorted[0]?.weight ?? averageWeight;
+      const freshCount = sorted.filter((article) => hoursOld(article.publishedAt) <= 18).length;
+      const score = clamp(
+        Math.round(28 + Math.min(sorted.length, 6) * 5.5 + averageWeight * 18 + maxWeight * 12 + freshCount * 2.5),
+        0,
+        100
+      );
       return {
         id: `live-${countryCode.toLowerCase()}-${label.toLowerCase().replace(/\W+/g, "-")}`,
         countryCode,
         label,
         score,
         summary: `${group.length} live article${group.length === 1 ? "" : "s"} point to ${label.toLowerCase()} as an active market signal.`,
-        impactSummary: `Live GDELT coverage is flagging ${label.toLowerCase()} developments. Treat this as a discovery signal until the article is manually reviewed or summarized by the LLM.`,
-        articles: group.sort((a, b) => b.weight - a.weight).slice(0, 8)
+        impactSummary: `Live coverage is flagging ${label.toLowerCase()} developments with ${averageWeight.toFixed(2)} average article weight. Higher scores require fresh, direct market linkage rather than volume alone.`,
+        articles: sorted.slice(0, 8)
       };
     })
     .sort((a, b) => b.score - a.score);
@@ -189,13 +216,62 @@ function inferCategory(text: string) {
   return "Financial Markets";
 }
 
-function inferWeight(text: string) {
-  const normalized = text.toLowerCase();
-  let weight = 0.85;
-  if (hasAny(normalized, ["urgent", "breaking", "attack", "sanction", "tariff", "shutdown", "strike"])) weight += 0.35;
-  if (hasAny(normalized, ["oil", "inflation", "central bank", "semiconductor", "shipping", "supply chain"])) weight += 0.28;
-  if (hasAny(normalized, ["market", "stocks", "currency", "bond", "prices", "exports"])) weight += 0.2;
-  return Math.min(2, Number(weight.toFixed(2)));
+function scoreArticleWeight(input: {
+  title: string;
+  summary: string;
+  category: string;
+  source: string;
+  countryCode: string;
+  publishedAt: string;
+}): WeightResult {
+  const text = `${input.title} ${input.summary}`.toLowerCase();
+  let points = 18;
+  const reasons: string[] = [];
+
+  const directSignals = ["central bank", "interest rate", "inflation", "tariff", "sanction", "oil", "gas", "lng", "shipping", "supply chain", "semiconductor", "export control", "currency", "bond", "stocks", "prices"];
+  const urgentSignals = ["breaking", "attack", "strike", "shutdown", "blockade", "missile", "drone", "rate hike", "rate cut"];
+  const weakSignals = ["celebrity", "crime", "patent", "prototype", "lifestyle", "sports"];
+
+  const directHits = directSignals.filter((term) => text.includes(term)).length;
+  const urgentHits = urgentSignals.filter((term) => text.includes(term)).length;
+  const weakHits = weakSignals.filter((term) => text.includes(term)).length;
+
+  points += directHits * 8;
+  points += urgentHits * 7;
+  points -= weakHits * 12;
+  if (directHits) reasons.push(`${directHits} direct market signal${directHits === 1 ? "" : "s"}`);
+  if (urgentHits) reasons.push(`${urgentHits} urgency/conflict signal${urgentHits === 1 ? "" : "s"}`);
+  if (weakHits) reasons.push("low-signal general coverage penalty");
+
+  if (text.includes(input.countryCode.toLowerCase()) || COUNTRY_KEYWORDS[input.countryCode]?.some((term) => text.includes(term.trim()))) {
+    points += 8;
+    reasons.push("country-specific language");
+  }
+
+  const ageHours = hoursOld(input.publishedAt);
+  if (ageHours <= 6) {
+    points += 10;
+    reasons.push("fresh within 6 hours");
+  } else if (ageHours <= 24) {
+    points += 6;
+    reasons.push("fresh within 24 hours");
+  } else if (ageHours > 72) {
+    points -= 10;
+    reasons.push("older than 72 hours");
+  }
+
+  if (isHighSignalSource(input.source)) {
+    points += 8;
+    reasons.push("higher-signal source/domain");
+  }
+
+  const relevance = clamp(points, 0, 100);
+  const weight = Number((relevance / 50).toFixed(2));
+  return {
+    weight: clamp(weight, 0, 2),
+    relevance,
+    reason: reasons.length ? reasons.join("; ") : "Baseline discovery signal with limited direct market evidence."
+  };
 }
 
 function marketReasonFor(category: string, countryCode: string) {
@@ -205,6 +281,40 @@ function marketReasonFor(category: string, countryCode: string) {
 
 function hasAny(value: string, terms: string[]) {
   return terms.some((term) => value.includes(term));
+}
+
+function isHighSignalSource(source: string) {
+  return hasAny(source.toLowerCase(), ["reuters", "bloomberg", "ft.com", "wsj", "marketwatch", "finance.yahoo", "cnbc", "marketplace"]);
+}
+
+function hoursOld(value: string) {
+  const timestamp = new Date(value).getTime();
+  if (Number.isNaN(timestamp)) return 24;
+  return Math.max(0, (Date.now() - timestamp) / 36e5);
+}
+
+function articleFingerprint(article: ArticleContext) {
+  const normalizedTitle = article.title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\b(the|a|an|and|or|to|of|in|on|for|with|as|by)\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (normalizedTitle.length >= 16) return `title:${normalizedTitle}`;
+  return `url:${canonicalizeUrl(article.url)}`;
+}
+
+function canonicalizeUrl(url: string) {
+  return url
+    .trim()
+    .replace(/^https?:\/\/(www\.)?/i, "")
+    .replace(/[?#].*$/, "")
+    .replace(/\/$/, "")
+    .toLowerCase();
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
 }
 
 function parseGdeltDate(value: string | undefined) {

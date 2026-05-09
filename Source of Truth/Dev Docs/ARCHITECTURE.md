@@ -20,20 +20,20 @@
 - Selected country/category/article.
 - Active filters.
 - Attached chat context.
-- Refresh state.
+- Refresh state, including startup/load/fetch/dedupe/status messaging.
 
 Main components:
 
 - `MarketStrip` renders major index cards.
 - `WorldMap` renders a local SVG world map, country click targets, pins, pan/zoom controls, selected-country focus, and interaction arrows.
 - `FilterBar` renders news/continent filters.
-- `CountryPanel` renders country, category, and article drill-in. It is mounted by `App.tsx` as an overlay inside the map only when a country is selected.
+- `CountryPanel` renders country, category, and article drill-in, including article weight reasons when available. It is mounted by `App.tsx` as an overlay inside the map only when a country is selected.
 - `ChatPanel` renders OpenRouter settings, saved chat thread controls, context bin, messages, slash commands, markdown-formatted assistant replies, composer, and expanded chat modal.
 - `liveData` remains the browser fallback for no-key live sources and maps them into the current snapshot-shaped frontend model.
 
 ## GUI And Map Behavior
 
-- The app uses a dark-mode dashboard shell.
+- The app uses a dark, dense operations-dashboard shell with restrained status indicators, market cards, and map-first layout.
 - The map owns the main workspace below the market strip. The country panel is not a permanent right column in the dashboard grid.
 - Selecting a country:
   - clears any selected category/article;
@@ -57,27 +57,34 @@ Main components:
 
 Startup:
 
-1. Frontend calls `loadSnapshot()`.
-2. If running inside Tauri, `load_snapshot` is invoked.
-3. If not running inside Tauri or native command fails, browser fallback loads localStorage or sample data.
-4. UI renders immediately from current snapshot.
+1. Frontend starts from the sample shell only long enough to mount.
+2. `App.tsx` calls `loadSnapshot()` and `loadChatThreads()` in parallel.
+3. If running inside Tauri, `load_snapshot` is invoked; otherwise browser fallback loads localStorage or sample data.
+4. Archived/local data renders immediately after hydration, preserving the active chat transcript.
+5. A live refresh starts automatically in the background against the loaded snapshot.
+6. The top bar status moves through loading, archived, fetching, deduping, ready, or failed states.
 
 Refresh:
 
-1. User clicks Refresh.
+1. Refresh starts automatically after archived data loads, or manually when the user clicks Refresh.
 2. Frontend calls `refreshData(snapshot)`.
 3. In Tauri, `refresh_live_data` fetches CoinGecko and GDELT from Rust.
 4. Native refresh records `ingestion_runs`, upserts `market_indexes`, upserts deduped `articles`, recomputes `category_scores`, and returns the same snapshot shape the UI already consumes.
 5. In browser mode, or if the native command fails, `fetchLiveSnapshot` attempts the same no-key sources from the frontend service layer.
 6. If all live requests fail, the app falls back to the existing local refresh behavior.
-7. Future work should add RSS/news, broader finance quotes, dedupe improvements, summarization, and LLM scoring jobs.
+7. The UI keeps the current chat transcript while applying the refreshed market/news snapshot.
+8. Future work should add RSS/news, broader finance quotes, summarization, and LLM scoring jobs.
 
 Live data mapping:
 
 - CoinGecko uses the no-key `/coins/markets` endpoint for BTC, ETH, SOL, and BNB.
 - GDELT uses six English article discovery lanes: energy, shipping, trade, monetary policy, semiconductors, and conflict.
 - Native provider requests include an explicit app user-agent, browser-like accept headers, sequential GDELT lane spacing, and retry/backoff handling for rate limits.
-- GDELT rows are normalized with country hints, category inference, lane evidence score, market relevance, accepted/rejected status, rejection reason, and canonical URL dedupe.
+- GDELT rows are normalized with country hints, text-first category inference, lane evidence score, market relevance, accepted/rejected status, rejection reason, canonical URL, and normalized title/content fingerprint.
+- Native and browser fallback ingestion dedupe syndicated/repeated articles by canonical URL and title fingerprint.
+- Article weights use a deterministic `0.00` to `2.00` rubric based on relevance, lane evidence, recency, source quality, country specificity, and direct market linkage.
+- Weight reasons are stored/displayed when available so the article detail view explains why a signal is weighted as it is.
+- Category scores use deduped article count, average/max weight, freshness, and confidence signals instead of simple volume alone.
 - GDELT can store worldwide article rows, but the current map still only renders countries present in the frontend country snapshot.
 - Clean desktop snapshots are normalized with the sample country shell so the map remains populated before live data arrives.
 
@@ -123,8 +130,8 @@ Current native persistence:
 - App settings stored in `settings`.
 - CoinGecko market strip rows stored in `market_indexes`.
 - GDELT discovery articles stored in `articles`.
-- GDELT article rows include provider, lane, canonical key, relevance score, lane evidence score, accepted/rejected flag, and rejection reason.
-- Heuristic country/category discovery scores stored in `category_scores`.
+- GDELT article rows include provider, lane, canonical key, content fingerprint, relevance score, lane evidence score, weight reason, accepted/rejected flag, and rejection reason.
+- Deterministic country/category discovery scores stored in `category_scores`.
 - Provider fetch attempts stored in `ingestion_runs`.
 - Chat threads stored in `chat_threads`; transcript rows stored in `chat_messages`.
 - Plans stored in `plans` and mirrored as markdown files in the app data `plans/` directory.
@@ -133,7 +140,7 @@ Current native persistence:
 
 Tables are designed for the planned full app:
 
-- `articles` stores scraped/ingested articles and LLM-generated impact metadata.
+- `articles` stores scraped/ingested articles, dedupe keys, deterministic weight metadata, and future LLM-generated impact metadata.
 - `market_indexes` stores top-strip market quote rows.
 - `category_scores` stores country/category scoring outputs and evidence JSON.
 - `chat_messages` stores chat history.
@@ -146,4 +153,4 @@ Tables are designed for the planned full app:
 
 ## Important Current Boundary
 
-The frontend still owns too much application logic for a production desktop app. The next architecture move should be to push ingestion, OpenRouter calls, scoring, and persistence fully into Tauri commands so the UI becomes a client of native services.
+The frontend still owns too much application logic for a production desktop app, especially browser fallback ingestion and snapshot composition. The next architecture move should be to push ingestion, OpenRouter calls, scoring, and persistence fully into Tauri commands so the UI becomes a client of native services.

@@ -121,9 +121,13 @@ Display rows from a table:
 
 ```bash
 npm run db -- --table articles --limit 10 --order "published_at desc"
+npm run db -- --table articles --limit 10 --order "weight desc"
+npm run db -- --table category_scores --limit 10 --order "score desc"
 npm run db -- --table ingestion_runs --limit 10 --order "started_at desc"
 npm run db -- --table chat_threads --limit 10 --order "updated_at desc"
 ```
+
+After opening the updated desktop app, older installed databases are migrated in place with article dedupe and weight columns. Useful columns to inspect include `canonical_key`, `content_fingerprint`, `weight_reason`, `market_relevance`, `lane_evidence_score`, `accepted_for_analysis`, and `rejected_reason`.
 
 If the `sqlite3` CLI is not installed, use Python's built-in SQLite module:
 
@@ -186,3 +190,11 @@ http://localhost:1422/
 ```
 
 because both `1420` and `1421` were already occupied.
+
+During the May 9, 2026 MVP finalization pass, `npm run dev` launched at:
+
+```text
+http://localhost:1420/
+```
+
+after approval to bind the local port from the sandbox.

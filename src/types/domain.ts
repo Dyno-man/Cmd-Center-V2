@@ -21,6 +21,7 @@ export interface ArticleContext {
   summary: string;
   marketReason: string;
   weight: number;
+  weightReason?: string;
 }
 
 export interface MarketCategory {

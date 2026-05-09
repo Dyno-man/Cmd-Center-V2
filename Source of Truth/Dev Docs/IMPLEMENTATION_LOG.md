@@ -65,16 +65,25 @@
   - Long-message wrapping and internal chat scrolling so chat content does not resize the map workspace.
   - Fallback assistant response when no OpenRouter key exists.
 - Added first live-data refresh behavior:
+  - App startup now renders archived/local data first and automatically launches a background live refresh/dedupe pass.
+  - The top bar now reports loading, archived, fetching, deduping, ready, and failed refresh states.
   - Tauri `refresh_live_data` fetches CoinGecko and GDELT from Rust.
   - Native provider requests use an explicit app user-agent, browser-like accept headers, sequential GDELT lane spacing, and retry/backoff for rate limits.
   - Browser fallback still uses the frontend `liveData` service.
   - CoinGecko no-key market snapshot updates the top strip with BTC, ETH, SOL, and BNB.
   - GDELT no-key discovery pulls recent English market/geopolitical articles through energy, shipping, trade, monetary policy, semiconductors, and conflict lanes.
-  - Live GDELT articles are normalized with country hints, category inference, lane evidence, market relevance, canonical URL dedupe, accepted/rejected status, and rejection reason.
+  - Live GDELT articles are normalized with country hints, text-first category inference, lane evidence, market relevance, canonical URL/title-fingerprint dedupe, accepted/rejected status, and rejection reason.
+  - Article weights now use a deterministic `0.00` to `2.00` rubric and store/display weight reasons.
+  - Category scores now use deduped count, average/max weight, freshness, and confidence signals instead of simple volume.
   - Native refresh persists provider runs, market rows, articles, and recomputed category scores in SQLite.
   - GDELT lane diagnostics are stored in `ingestion_runs.notes`.
   - Live categories replace matching sample categories while preserving sample country/map structure.
   - Empty desktop snapshots are normalized to the sample country shell so a clean SQLite DB still renders the map.
+- Added MVP UI polish:
+  - tighter dark operations-dashboard visual treatment;
+  - clearer market cards and status indicators;
+  - cleaner filter summary;
+  - improved article lists, empty states, and weight-reason display.
 
 ### Native Tauri Shell
 
@@ -114,6 +123,7 @@
   - `chat_threads`
   - `ingestion_runs`
 - Current native commands persist snapshots, settings, plans, live market rows, live article discovery rows, category scores, chat threads/messages, and ingestion run records through SQLite.
+- Article rows now include/backfill dedupe metadata (`canonical_key`, `content_fingerprint`) and weight metadata (`weight_reason`) for installed databases.
 
 ### Documentation
 
@@ -142,6 +152,8 @@ After provider rejection fixes, `npm run build` and `cd src-tauri && cargo check
 
 After adding GDELT lanes, chat threads, and native OpenRouter chat, `npm run build` and `cd src-tauri && source "$HOME/.cargo/env" && cargo check` were re-run and passed. The build still reports the standard Vite chunk-size warning.
 
+After the MVP finalization pass on May 9, 2026, `npm run build` and `cd src-tauri && cargo check` were re-run and passed. The build still reports the standard Vite chunk-size warning.
+
 ### Native Rust/Tauri
 
 ```bash
@@ -160,6 +172,14 @@ npm run tauri dev
 ```
 
 Result: compiled and launched `target/debug/command-center`.
+
+Latest browser dev server check:
+
+```bash
+npm run dev
+```
+
+Result: launched at `http://localhost:1420/` after port binding approval.
 
 ## Issues Encountered And Fixed
 
@@ -181,7 +201,7 @@ Result: compiled and launched `target/debug/command-center`.
 - The map is now a real local SVG geography, but only the currently modeled sample countries are wired to app country data through a local ID mapping.
 - The top market strip now uses live CoinGecko crypto prices on refresh, but broad equity index quote ingestion is not implemented yet.
 - GDELT article discovery is live on refresh and persisted in SQLite, but RSS/news ingestion is not implemented yet.
-- GDELT scoring now uses lane evidence and relevance heuristics, but the LLM scoring rubric has not been implemented as a backend job.
-- Live article country/category assignment and score/weight values are heuristic discovery signals, not final LLM analysis.
+- GDELT scoring now uses deterministic relevance, recency, source, country-specificity, and lane evidence signals, but LLM summarization/scoring has not been implemented as a backend job.
+- Live article country/category assignment and score/weight values are deterministic discovery signals, not final LLM analysis.
 - Skills are built-in in browser fallback and hardcoded in the native command for now; markdown file loading should be added.
 - OpenRouter calls now prefer the native Tauri command. The frontend service remains as browser fallback.

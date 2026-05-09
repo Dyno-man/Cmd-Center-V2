@@ -82,12 +82,15 @@ struct ArticleContext {
     #[serde(rename = "marketReason")]
     market_reason: String,
     weight: f64,
+    #[serde(rename = "weightReason", skip_serializing_if = "Option::is_none")]
+    weight_reason: Option<String>,
 }
 
 #[derive(Debug, Clone)]
 struct IngestedArticle {
     context: ArticleContext,
     canonical_key: String,
+    content_fingerprint: String,
     provider: String,
     query_lane: Option<String>,
     market_relevance: i64,
@@ -191,11 +194,20 @@ fn migrate_database(connection: &Connection) -> Result<(), String> {
     add_column_if_missing(connection, "articles", "canonical_key", "text")?;
     add_column_if_missing(connection, "articles", "provider", "text not null default 'unknown'")?;
     add_column_if_missing(connection, "articles", "query_lane", "text")?;
+    add_column_if_missing(connection, "articles", "weight_reason", "text")?;
     add_column_if_missing(connection, "articles", "market_relevance", "integer not null default 0")?;
     add_column_if_missing(connection, "articles", "lane_evidence_score", "integer not null default 0")?;
     add_column_if_missing(connection, "articles", "accepted_for_analysis", "integer not null default 1")?;
     add_column_if_missing(connection, "articles", "rejected_reason", "text")?;
+    add_column_if_missing(connection, "articles", "content_fingerprint", "text")?;
     add_column_if_missing(connection, "chat_messages", "thread_id", "text not null default 'default'")?;
+    backfill_article_dedupe_columns(connection)?;
+    connection
+        .execute("create index if not exists idx_articles_canonical_key on articles(canonical_key)", [])
+        .map_err(|error| error.to_string())?;
+    connection
+        .execute("create index if not exists idx_articles_content_fingerprint on articles(content_fingerprint)", [])
+        .map_err(|error| error.to_string())?;
     connection
         .execute(
             "insert into chat_threads (id, title, summary, archived, created_at, updated_at)
@@ -204,6 +216,36 @@ fn migrate_database(connection: &Connection) -> Result<(), String> {
             params![now()],
         )
         .map_err(|error| error.to_string())?;
+    Ok(())
+}
+
+fn backfill_article_dedupe_columns(connection: &Connection) -> Result<(), String> {
+    let mut statement = connection
+        .prepare("select id, title, url from articles where canonical_key is null or canonical_key = '' or content_fingerprint is null or content_fingerprint = ''")
+        .map_err(|error| error.to_string())?;
+    let rows = statement
+        .query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+            ))
+        })
+        .map_err(|error| error.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| error.to_string())?;
+
+    for (id, title, url) in rows {
+        let canonical_key = canonicalize_url(&url);
+        let content_fingerprint = content_fingerprint(&title, &url);
+        connection
+            .execute(
+                "update articles set canonical_key = ?1, content_fingerprint = ?2 where id = ?3",
+                params![canonical_key, content_fingerprint, id],
+            )
+            .map_err(|error| error.to_string())?;
+    }
+
     Ok(())
 }
 
@@ -327,15 +369,6 @@ fn infer_country_code(article: &GdeltArticle, text: &str) -> Option<String> {
 }
 
 fn infer_category(text: &str, lane: Option<&str>) -> String {
-    match lane {
-        Some("energy") => return "Energy".to_string(),
-        Some("shipping") | Some("trade") => return "Supply Chain".to_string(),
-        Some("monetary_policy") => return "Policy".to_string(),
-        Some("semiconductors") => return "Technology".to_string(),
-        Some("conflict") => return "Defense".to_string(),
-        _ => {}
-    }
-
     let normalized = text.to_lowercase();
     if has_any(&normalized, &["oil", "gas", "lng", "opec", "pipeline", "electricity", "power grid", "energy"]) {
         return "Energy".to_string();
@@ -354,6 +387,14 @@ fn infer_category(text: &str, lane: Option<&str>) -> String {
     }
     if has_any(&normalized, &["shipping", "port", "freight", "cargo", "maritime", "suez", "hormuz"]) {
         return "Supply Chain".to_string();
+    }
+    match lane {
+        Some("energy") => return "Energy".to_string(),
+        Some("shipping") | Some("trade") => return "Supply Chain".to_string(),
+        Some("monetary_policy") => return "Policy".to_string(),
+        Some("semiconductors") => return "Technology".to_string(),
+        Some("conflict") => return "Defense".to_string(),
+        _ => {}
     }
     "Financial Markets".to_string()
 }
@@ -446,6 +487,97 @@ fn rejection_reason(title: &str, summary: &str, category: &str, relevance: i64, 
     Some("Insufficient evidence of medium-term market impact.".to_string())
 }
 
+fn hours_old(value: &str) -> f64 {
+    chrono::DateTime::parse_from_rfc3339(value)
+        .map(|timestamp| {
+            let hours = (chrono::Utc::now() - timestamp.with_timezone(&chrono::Utc)).num_minutes() as f64 / 60.0;
+            f64::max(0.0, hours)
+        })
+        .unwrap_or(24.0)
+}
+
+fn high_signal_source(source: &str) -> bool {
+    let normalized = source.to_lowercase();
+    has_any(&normalized, &["reuters", "bloomberg", "ft.com", "wsj", "marketwatch", "finance.yahoo", "cnbc", "marketplace"])
+}
+
+fn score_article_weight(
+    title: &str,
+    summary: &str,
+    country_code: &str,
+    category: &str,
+    source: &str,
+    published_at: &str,
+    market_relevance: i64,
+    lane_evidence: i64,
+) -> (f64, String) {
+    let text = format!("{title} {summary}").to_lowercase();
+    let mut points = 16 + market_relevance / 2 + lane_evidence / 2;
+    let mut reasons = Vec::new();
+
+    let direct = [
+        "central bank", "interest rate", "inflation", "tariff", "sanction", "oil", "gas", "lng", "shipping",
+        "supply chain", "semiconductor", "export control", "currency", "bond", "stocks", "prices", "production",
+        "guidance", "earnings", "customs",
+    ];
+    let urgent = ["breaking", "attack", "strike", "shutdown", "blockade", "missile", "drone", "rate hike", "rate cut"];
+    let weak = ["celebrity", "crime", "patent", "prototype", "lifestyle", "sports", "film star", "baby food"];
+
+    let direct_hits = direct.iter().filter(|term| text.contains(**term)).count() as i64;
+    let urgent_hits = urgent.iter().filter(|term| text.contains(**term)).count() as i64;
+    let weak_hits = weak.iter().filter(|term| text.contains(**term)).count() as i64;
+
+    points += direct_hits * 6;
+    points += urgent_hits * 5;
+    points -= weak_hits * 12;
+    if direct_hits > 0 {
+        reasons.push(format!("{direct_hits} direct market signal{}", if direct_hits == 1 { "" } else { "s" }));
+    }
+    if urgent_hits > 0 {
+        reasons.push(format!("{urgent_hits} urgency/conflict signal{}", if urgent_hits == 1 { "" } else { "s" }));
+    }
+    if weak_hits > 0 {
+        reasons.push("low-signal general coverage penalty".to_string());
+    }
+
+    if country_hints()
+        .iter()
+        .find(|(code, _)| *code == country_code)
+        .map(|(_, terms)| terms.iter().any(|term| text.contains(term.trim())))
+        .unwrap_or(false)
+    {
+        points += 8;
+        reasons.push("country-specific language".to_string());
+    }
+
+    let age = hours_old(published_at);
+    if age <= 6.0 {
+        points += 10;
+        reasons.push("fresh within 6 hours".to_string());
+    } else if age <= 24.0 {
+        points += 6;
+        reasons.push("fresh within 24 hours".to_string());
+    } else if age > 72.0 {
+        points -= 10;
+        reasons.push("older than 72 hours".to_string());
+    }
+
+    if high_signal_source(source) {
+        points += 8;
+        reasons.push("higher-signal source/domain".to_string());
+    }
+
+    let relevance = i64::min(100, i64::max(0, points));
+    let weight = ((relevance as f64 / 50.0) * 100.0).round() / 100.0;
+    let reason = if reasons.is_empty() {
+        format!("Baseline {category} discovery signal with limited direct market evidence.")
+    } else {
+        reasons.join("; ")
+    };
+
+    (f64::min(2.0, f64::max(0.0, weight)), reason)
+}
+
 fn canonicalize_url(url: &str) -> String {
     let trimmed = url.trim().trim_end_matches('/');
     trimmed
@@ -457,6 +589,32 @@ fn canonicalize_url(url: &str) -> String {
         .trim_start_matches("https://")
         .trim_start_matches("http://")
         .to_lowercase()
+}
+
+fn normalized_title_key(title: &str) -> String {
+    let mut normalized = String::with_capacity(title.len());
+    for character in title.to_lowercase().chars() {
+        if character.is_ascii_alphanumeric() {
+            normalized.push(character);
+        } else {
+            normalized.push(' ');
+        }
+    }
+
+    normalized
+        .split_whitespace()
+        .filter(|word| !matches!(*word, "the" | "a" | "an" | "and" | "or" | "to" | "of" | "in" | "on" | "for" | "with" | "as" | "by"))
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn content_fingerprint(title: &str, url: &str) -> String {
+    let title_key = normalized_title_key(title);
+    if title_key.len() >= 16 {
+        format!("title:{title_key}")
+    } else {
+        format!("url:{}", canonicalize_url(url))
+    }
 }
 
 fn country_name(country_code: &str) -> &str {
@@ -715,12 +873,13 @@ async fn fetch_gdelt_articles(client: &reqwest::Client) -> Result<(Vec<IngestedA
                 let accepted_count = lane_articles.iter().filter(|article| article.accepted_for_analysis).count();
                 for article in lane_articles.iter().cloned() {
                     let priority = article.market_relevance + if article.accepted_for_analysis { 20 } else { 0 };
+                    let dedupe_key = article.content_fingerprint.clone();
                     let existing_priority = best_by_key
-                        .get(&article.canonical_key)
+                        .get(&dedupe_key)
                         .map(|existing| existing.market_relevance + if existing.accepted_for_analysis { 20 } else { 0 })
                         .unwrap_or(-1);
                     if priority > existing_priority {
-                        best_by_key.insert(article.canonical_key.clone(), article);
+                        best_by_key.insert(dedupe_key, article);
                     }
                 }
 
@@ -778,10 +937,23 @@ fn normalize_gdelt_article(lane: &str, index: usize, article: GdeltArticle) -> O
     let rejected_reason = rejection_reason(&title, &summary, &category, relevance, "gdelt", evidence, Some(lane));
     let accepted_for_analysis = rejected_reason.is_none();
     let canonical_key = canonicalize_url(&url);
-    let weight = f64::min(2.0, f64::max(0.1, (relevance as f64 / 50.0 * 100.0_f64).round() / 100.0_f64));
+    let source = article.domain.unwrap_or_else(|| "GDELT".to_string());
+    let published_at = parse_gdelt_date(article.seendate.as_deref());
+    let (weight, weight_reason) = score_article_weight(
+        &title,
+        &summary,
+        &country_code,
+        &category,
+        &source,
+        &published_at,
+        relevance,
+        evidence,
+    );
+    let content_fingerprint = content_fingerprint(&title, &url);
 
     Some(IngestedArticle {
         canonical_key: canonical_key.clone(),
+        content_fingerprint,
         provider: "gdelt".to_string(),
         query_lane: Some(lane.to_string()),
         market_relevance: relevance,
@@ -791,14 +963,15 @@ fn normalize_gdelt_article(lane: &str, index: usize, article: GdeltArticle) -> O
         context: ArticleContext {
             id: format!("gdelt-{lane}-{index}-{}", hashish(&canonical_key)),
             title,
-            source: article.domain.unwrap_or_else(|| "GDELT".to_string()),
+            source,
             url,
-            published_at: parse_gdelt_date(article.seendate.as_deref()),
+            published_at,
             country_code: country_code.clone(),
             category: category.clone(),
             summary,
             market_reason: market_reason_for(&category, &country_code),
             weight,
+            weight_reason: Some(weight_reason),
         },
     })
 }
@@ -822,49 +995,116 @@ fn persist_market_indexes(connection: &Connection, indexes: &[MarketIndex]) -> R
 
 fn persist_articles(connection: &Connection, articles: &[IngestedArticle]) -> Result<(), String> {
     for article in articles {
-        connection
-            .execute(
-                "insert into articles
-                 (id, canonical_key, provider, query_lane, title, source, url, published_at, country_code, category, summary, market_reason, weight, market_relevance, lane_evidence_score, accepted_for_analysis, rejected_reason, raw_content, created_at)
-                 values (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, null, ?18)
-                 on conflict(url) do update set
-                   title = excluded.title,
-                   canonical_key = excluded.canonical_key,
-                   provider = excluded.provider,
-                   query_lane = excluded.query_lane,
-                   source = excluded.source,
-                   published_at = excluded.published_at,
-                   country_code = excluded.country_code,
-                   category = excluded.category,
-                   summary = excluded.summary,
-                   market_reason = excluded.market_reason,
-                   weight = excluded.weight,
-                   market_relevance = excluded.market_relevance,
-                   lane_evidence_score = excluded.lane_evidence_score,
-                   accepted_for_analysis = excluded.accepted_for_analysis,
-                   rejected_reason = excluded.rejected_reason",
-                params![
-                    article.context.id,
-                    article.canonical_key,
-                    article.provider,
-                    article.query_lane,
-                    article.context.title,
-                    article.context.source,
-                    article.context.url,
-                    article.context.published_at,
-                    article.context.country_code,
-                    article.context.category,
-                    article.context.summary,
-                    article.context.market_reason,
-                    article.context.weight,
-                    article.market_relevance,
-                    article.lane_evidence_score,
-                    if article.accepted_for_analysis { 1 } else { 0 },
-                    article.rejected_reason,
-                    now()
-                ],
+        let existing_id: Option<String> = connection
+            .query_row(
+                "select id
+                 from articles
+                 where url = ?1
+                    or (canonical_key is not null and canonical_key != '' and canonical_key = ?2)
+                    or (content_fingerprint is not null and content_fingerprint != '' and content_fingerprint = ?3)
+                 order by accepted_for_analysis desc, market_relevance desc, published_at desc
+                 limit 1",
+                params![article.context.url, article.canonical_key, article.content_fingerprint],
+                |row| row.get(0),
             )
+            .optional()
             .map_err(|error| error.to_string())?;
+
+        if let Some(existing_id) = existing_id {
+            connection
+                .execute(
+                    "update articles set
+                       title = ?1,
+                       canonical_key = ?2,
+                       content_fingerprint = ?3,
+                       provider = ?4,
+                       query_lane = ?5,
+                       source = ?6,
+                       url = ?7,
+                       published_at = ?8,
+                       country_code = ?9,
+                       category = ?10,
+                       summary = ?11,
+                       market_reason = ?12,
+                       weight = ?13,
+                       weight_reason = ?14,
+                       market_relevance = ?15,
+                       lane_evidence_score = ?16,
+                       accepted_for_analysis = ?17,
+                       rejected_reason = ?18
+                     where id = ?19",
+                    params![
+                        article.context.title,
+                        article.canonical_key,
+                        article.content_fingerprint,
+                        article.provider,
+                        article.query_lane,
+                        article.context.source,
+                        article.context.url,
+                        article.context.published_at,
+                        article.context.country_code,
+                        article.context.category,
+                        article.context.summary,
+                        article.context.market_reason,
+                        article.context.weight,
+                        article.context.weight_reason,
+                        article.market_relevance,
+                        article.lane_evidence_score,
+                        if article.accepted_for_analysis { 1 } else { 0 },
+                        article.rejected_reason,
+                        existing_id
+                    ],
+                )
+                .map_err(|error| error.to_string())?;
+        } else {
+            connection
+                .execute(
+                    "insert into articles
+                     (id, canonical_key, provider, query_lane, title, source, url, published_at, country_code, category, summary, market_reason, weight, weight_reason, market_relevance, lane_evidence_score, accepted_for_analysis, rejected_reason, content_fingerprint, raw_content, created_at)
+                     values (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, null, ?20)
+                     on conflict(url) do update set
+                       title = excluded.title,
+                       canonical_key = excluded.canonical_key,
+                       content_fingerprint = excluded.content_fingerprint,
+                       provider = excluded.provider,
+                       query_lane = excluded.query_lane,
+                       source = excluded.source,
+                       published_at = excluded.published_at,
+                       country_code = excluded.country_code,
+                       category = excluded.category,
+                       summary = excluded.summary,
+                       market_reason = excluded.market_reason,
+                       weight = excluded.weight,
+                       weight_reason = excluded.weight_reason,
+                       market_relevance = excluded.market_relevance,
+                       lane_evidence_score = excluded.lane_evidence_score,
+                       accepted_for_analysis = excluded.accepted_for_analysis,
+                       rejected_reason = excluded.rejected_reason",
+                    params![
+                        article.context.id,
+                        article.canonical_key,
+                        article.provider,
+                        article.query_lane,
+                        article.context.title,
+                        article.context.source,
+                        article.context.url,
+                        article.context.published_at,
+                        article.context.country_code,
+                        article.context.category,
+                        article.context.summary,
+                        article.context.market_reason,
+                        article.context.weight,
+                        article.context.weight_reason,
+                        article.market_relevance,
+                        article.lane_evidence_score,
+                        if article.accepted_for_analysis { 1 } else { 0 },
+                        article.rejected_reason,
+                        article.content_fingerprint,
+                        now()
+                    ],
+                )
+                .map_err(|error| error.to_string())?;
+        }
     }
     Ok(())
 }
@@ -891,30 +1131,54 @@ fn load_market_indexes(connection: &Connection) -> Result<Vec<MarketIndex>, Stri
 fn load_articles(connection: &Connection) -> Result<Vec<ArticleContext>, String> {
     let mut statement = connection
         .prepare(
-            "select id, title, source, url, published_at, country_code, category, summary, market_reason, weight
+            "select id, title, source, url, published_at, country_code, category, summary, market_reason, weight, weight_reason, content_fingerprint, market_relevance
              from articles
              where accepted_for_analysis = 1
-             order by published_at desc",
+             order by market_relevance desc, weight desc, published_at desc",
         )
         .map_err(|error| error.to_string())?;
     let rows = statement
         .query_map([], |row| {
-            Ok(ArticleContext {
-                id: row.get(0)?,
-                title: row.get(1)?,
-                source: row.get(2)?,
-                url: row.get(3)?,
-                published_at: row.get(4)?,
-                country_code: row.get(5)?,
-                category: row.get(6)?,
-                summary: row.get(7)?,
-                market_reason: row.get(8)?,
-                weight: row.get(9)?,
-            })
+            let article = ArticleContext {
+                    id: row.get(0)?,
+                    title: row.get(1)?,
+                    source: row.get(2)?,
+                    url: row.get(3)?,
+                    published_at: row.get(4)?,
+                    country_code: row.get(5)?,
+                    category: row.get(6)?,
+                    summary: row.get(7)?,
+                    market_reason: row.get(8)?,
+                    weight: row.get(9)?,
+                    weight_reason: row.get(10)?,
+                };
+            Ok((article, row.get::<_, Option<String>>(11)?, row.get::<_, i64>(12)?))
         })
         .map_err(|error| error.to_string())?;
 
-    rows.collect::<Result<Vec<_>, _>>().map_err(|error| error.to_string())
+    let mut best_by_key: HashMap<String, (ArticleContext, i64)> = HashMap::new();
+    for row in rows {
+        let (article, fingerprint, relevance) = row.map_err(|error| error.to_string())?;
+        let key = fingerprint.unwrap_or_else(|| content_fingerprint(&article.title, &article.url));
+        let should_replace = best_by_key
+            .get(&key)
+            .map(|(existing, existing_relevance)| {
+                relevance > *existing_relevance || (relevance == *existing_relevance && article.weight > existing.weight)
+            })
+            .unwrap_or(true);
+        if should_replace {
+            best_by_key.insert(key, (article, relevance));
+        }
+    }
+
+    let mut articles = best_by_key.into_values().map(|(article, _)| article).collect::<Vec<_>>();
+    articles.sort_by(|a, b| {
+        b.weight
+            .partial_cmp(&a.weight)
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .then(b.published_at.cmp(&a.published_at))
+    });
+    Ok(articles)
 }
 
 fn recompute_category_scores(connection: &Connection) -> Result<(), String> {
@@ -931,17 +1195,26 @@ fn recompute_category_scores(connection: &Connection) -> Result<(), String> {
     for ((country_code, category), mut group) in grouped {
         group.sort_by(|a, b| b.weight.partial_cmp(&a.weight).unwrap_or(std::cmp::Ordering::Equal));
         let average_weight = group.iter().map(|article| article.weight).sum::<f64>() / group.len() as f64;
-        let score = i64::min(92, (46.0 + group.len() as f64 * 7.0 + average_weight * 12.0).round() as i64);
+        let max_weight = group.first().map(|article| article.weight).unwrap_or(average_weight);
+        let fresh_count = group.iter().filter(|article| hours_old(&article.published_at) <= 18.0).count() as f64;
+        let score = i64::min(
+            100,
+            i64::max(
+                0,
+                (28.0 + f64::min(group.len() as f64, 6.0) * 5.5 + average_weight * 18.0 + max_weight * 12.0 + fresh_count * 2.5).round() as i64,
+            ),
+        );
         let score_id = format!("live-{}-{}", country_code.to_lowercase(), category.to_lowercase().replace(|character: char| !character.is_ascii_alphanumeric(), "-"));
         let summary = format!(
-            "{} live article{} point to {} as an active market signal.",
+            "{} deduped live article{} point to {} as an active market signal.",
             group.len(),
             if group.len() == 1 { "" } else { "s" },
             category.to_lowercase()
         );
         let impact_summary = format!(
-            "Live GDELT coverage is flagging {} developments. Treat this as a discovery signal until the article is manually reviewed or summarized by the LLM.",
-            category.to_lowercase()
+            "Live coverage is flagging {} developments with {:.2} average article weight. Higher scores require fresh, direct market linkage rather than volume alone.",
+            category.to_lowercase(),
+            average_weight
         );
         let evidence_json = serde_json::to_string(
             &group
@@ -951,7 +1224,8 @@ fn recompute_category_scores(connection: &Connection) -> Result<(), String> {
                     serde_json::json!({
                         "id": article.id,
                         "url": article.url,
-                        "weight": article.weight
+                        "weight": article.weight,
+                        "weightReason": article.weight_reason
                     })
                 })
                 .collect::<Vec<_>>(),

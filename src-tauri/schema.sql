@@ -46,15 +46,18 @@ create table if not exists articles (
   summary text not null,
   market_reason text not null,
   weight real not null,
+  weight_reason text,
   market_relevance integer not null default 0,
   lane_evidence_score integer not null default 0,
   accepted_for_analysis integer not null default 1,
   rejected_reason text,
+  content_fingerprint text,
   raw_content text,
   created_at text not null
 );
 
 create index if not exists idx_articles_canonical_key on articles(canonical_key);
+create index if not exists idx_articles_content_fingerprint on articles(content_fingerprint);
 create index if not exists idx_articles_provider_lane on articles(provider, query_lane);
 create index if not exists idx_articles_accepted on articles(accepted_for_analysis, published_at desc);
 

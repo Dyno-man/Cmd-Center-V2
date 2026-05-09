@@ -22,12 +22,15 @@ This folder is the handoff source for the current Command Center V2 build. It co
 - SQLite schema exists in `src-tauri/schema.sql`.
 - OpenRouter chat integration prefers a native Tauri command, with frontend/browser fallback.
 - Chat conversations can be started fresh while preserving previous transcripts in SQLite.
+- On launch, archived/local data renders first and a live refresh starts automatically in the background.
 - CoinGecko and GDELT live fetching exist; GDELT uses six worldwide discovery lanes with heuristic relevance gating.
+- Article ingestion now dedupes by canonical URL and normalized title fingerprint to reduce syndicated duplicates.
+- Article weights now use a deterministic `0.00` to `2.00` rubric with weight reasons shown in the country/article drill-in.
 - Real RSS scraping and production LLM scoring are not implemented yet.
 
 ## Important Verification Status
 
-Last verified on May 8, 2026:
+Last verified on May 9, 2026:
 
 ```bash
 npm run build
@@ -35,5 +38,6 @@ cd src-tauri && source "$HOME/.cargo/env" && cargo check
 npm run tauri dev
 ```
 
-The desktop dev command compiled and launched `target/debug/command-center`.
-The latest frontend build after the map/dark-mode iteration passed with `npm run build`.
+The latest frontend build passed with the standard Vite chunk-size warning.
+The latest Rust backend check passed with `cargo check`.
+The browser dev server launched at `http://localhost:1420/` after approval to bind the local port.

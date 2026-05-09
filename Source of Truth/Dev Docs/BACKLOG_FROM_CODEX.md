@@ -16,11 +16,11 @@ This is the list of work I believe should be added or completed next, based on t
    - Keep snapshot only as a temporary compatibility layer until all UI queries are native-backed.
 
 3. Implement RSS ingestion.
-   - A richer live GDELT discovery path exists and persists normalized article rows during native refresh.
+   - A richer live GDELT discovery path exists and persists normalized, deduped article rows during native refresh.
    - Add RSS source configuration.
    - Add ingestion run records.
    - Fetch RSS items on startup/refresh.
-   - Deduplicate by canonical URL and content hash.
+   - Reuse the current canonical URL/title fingerprint dedupe and add content hash dedupe after article extraction exists.
    - Store records in `articles`.
 
 4. Implement article scraping/extraction.
@@ -28,20 +28,19 @@ This is the list of work I believe should be added or completed next, based on t
    - Extract title, author/source if available, publish date, main text, and canonical URL.
    - Store raw content or extracted content carefully.
 
-5. Implement LLM article summarization and weighting.
+5. Implement LLM article summarization and scoring.
    - Summarize article.
    - Identify country/countries affected.
    - Identify market category.
    - Explain market impact.
-   - Assign weight from `0.00` to `2.00`.
-   - Store the reasoning.
+   - Compare or override the deterministic `0.00` to `2.00` weight rubric when OpenRouter is configured.
+   - Store model reasoning separately from deterministic weight reasons.
 
-6. Implement country/category scoring.
-   - Current GDELT category scoring uses accepted heuristic article rows and lane evidence.
-   - Use article summaries, weights, recency, source quality, and country/category grouping.
-   - Score `0` to `100`.
-   - Store evidence JSON and impact summary.
-   - Render score updates in the country panel.
+6. Harden country/category scoring.
+   - Current GDELT category scoring uses deduped accepted rows, deterministic weights, recency, and article grouping.
+   - Add tests and calibration fixtures for score bands.
+   - Add confidence and source diversity to evidence JSON.
+   - Eventually blend deterministic scores with LLM summaries.
 
 ## Product Features To Complete
 
@@ -117,16 +116,17 @@ This is the list of work I believe should be added or completed next, based on t
    - Missing API keys.
 
 5. Add UI polish and responsiveness.
-   - Verify desktop and smaller screens with screenshots.
+   - MVP polish pass completed for the dark operations-dashboard style.
+   - Still verify desktop and smaller screens with screenshots.
    - Continue refining map/panel responsive behavior, especially smaller screens.
    - Replace temporary Tauri icon.
    - Continue improving country panel scroll handling.
    - Chat scroll handling was improved for long messages and expanded conversations; future work should add automated visual regression coverage.
 
-6. Add source control.
-   - The current `.git` directory is not valid repo metadata.
-   - Initialize or repair Git before serious iteration.
-   - Commit scaffold separately from future feature work.
+6. Add source control hygiene.
+   - `git status --short` is currently usable.
+   - Commit scaffold/MVP finalization separately from future feature work.
+   - Add a standard branch/commit workflow before broader iteration.
 
 ## Security And Privacy Work
 

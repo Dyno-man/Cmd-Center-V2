@@ -49,8 +49,10 @@ export function FilterBar({ activeContinents, activeNewsTypes, onContinentsChang
           </div>
         </div>
       </details>
-      <button className="toolbar-button" type="button">Continent Filter</button>
-      <div className="toolbar-spacer">Reserved for additional filters</div>
+      <div className="filter-summary">
+        <span>{activeNewsTypes.length} news lanes</span>
+        <span>{activeContinents.length} regions</span>
+      </div>
     </div>
   );
 }

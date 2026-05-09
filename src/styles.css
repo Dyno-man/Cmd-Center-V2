@@ -1,6 +1,18 @@
 :root {
-  color: #e7edf3;
-  background: #070a0f;
+  color: #eef3f7;
+  background: #080b0e;
+  --bg: #080b0e;
+  --panel: #10161c;
+  --panel-strong: #151c23;
+  --panel-soft: #0c1116;
+  --line: #26323d;
+  --line-strong: #3a4855;
+  --text: #eef3f7;
+  --muted: #91a0ad;
+  --accent: #72c6e8;
+  --positive: #53d18b;
+  --warning: #e8d25d;
+  --negative: #ee6b64;
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -20,7 +32,7 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
-  background: #070a0f;
+  background: var(--bg);
   overflow: hidden;
 }
 
@@ -36,24 +48,24 @@ button {
 
 .app-shell {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 340px;
+  grid-template-columns: minmax(0, 1fr) 360px;
   height: 100vh;
   min-height: 0;
   gap: 12px;
   padding: 12px;
   overflow: hidden;
   background:
-    radial-gradient(circle at 22% 12%, rgba(44, 89, 112, 0.24), transparent 34%),
-    linear-gradient(135deg, #0a0f16, #05070b 62%);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent 160px),
+    linear-gradient(135deg, #0a0d11, #05070a 62%);
 }
 
 .workspace,
 .chat-panel,
 .country-panel {
-  background: rgba(12, 18, 25, 0.94);
-  border: 1px solid #263442;
+  background: rgba(16, 22, 28, 0.96);
+  border: 1px solid var(--line);
   border-radius: 8px;
-  box-shadow: 0 14px 38px rgba(0, 0, 0, 0.24);
+  box-shadow: 0 18px 52px rgba(0, 0, 0, 0.32);
 }
 
 .workspace {
@@ -69,18 +81,46 @@ button {
   grid-template-columns: minmax(180px, 1fr) auto auto;
   align-items: center;
   gap: 12px;
-  padding: 12px;
-  border-bottom: 1px solid #22303d;
+  padding: 14px;
+  border-bottom: 1px solid var(--line);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent);
 }
 
 .topbar h1 {
   margin: 0;
-  font-size: 22px;
+  font-size: 21px;
+  line-height: 1.1;
 }
 
 .topbar span {
-  color: #91a0ad;
+  color: var(--muted);
   font-size: 13px;
+}
+
+.topbar > div:first-child {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.refresh-status {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.refresh-status--ready {
+  color: var(--positive);
+}
+
+.refresh-status--fetching,
+.refresh-status--deduping,
+.refresh-status--archived {
+  color: var(--accent);
+}
+
+.refresh-status--failed {
+  color: var(--negative);
 }
 
 .market-strip {
@@ -91,21 +131,24 @@ button {
 }
 
 .market-card {
-  min-width: 116px;
-  padding: 8px 10px;
-  border: 1px solid #334657;
+  min-width: 122px;
+  padding: 9px 10px;
+  border: 1px solid var(--line-strong);
   border-radius: 6px;
   display: grid;
   gap: 2px;
-  color: #071018;
+  color: var(--text);
+  background: var(--panel-strong);
 }
 
 .market-card--up {
-  background: #c9f2d7;
+  border-color: rgba(83, 209, 139, 0.5);
+  box-shadow: inset 3px 0 0 var(--positive);
 }
 
 .market-card--down {
-  background: #f4c9c8;
+  border-color: rgba(238, 107, 100, 0.55);
+  box-shadow: inset 3px 0 0 var(--negative);
 }
 
 .market-card__name,
@@ -118,9 +161,9 @@ button {
 .filter-popover summary,
 .settings-panel button,
 .context-bin button {
-  border: 1px solid #3a4c5e;
-  background: #121c26;
-  color: #e7edf3;
+  border: 1px solid var(--line-strong);
+  background: #121a22;
+  color: var(--text);
   border-radius: 6px;
   padding: 9px 11px;
 }
@@ -129,6 +172,17 @@ button {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  min-height: 38px;
+}
+
+.spin {
+  animation: spin 900ms linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .dashboard-grid {
@@ -157,9 +211,9 @@ button {
   position: relative;
   min-height: 560px;
   height: 100%;
-  border: 1px solid #111820;
+  border: 1px solid #17212a;
   border-radius: 8px;
-  background: #0d1116;
+  background: #0b1015;
   overflow: hidden;
 }
 
@@ -194,8 +248,8 @@ button {
   height: 100%;
   min-height: 560px;
   background:
-    radial-gradient(circle at 50% 42%, rgba(48, 62, 72, 0.24), transparent 62%),
-    linear-gradient(135deg, #111923, #03070c);
+    linear-gradient(180deg, rgba(71, 91, 104, 0.15), transparent 42%),
+    linear-gradient(135deg, #111820, #05080c);
   touch-action: none;
 }
 
@@ -204,8 +258,8 @@ button {
 }
 
 .map-country {
-  fill: #3d4954;
-  stroke: #16212b;
+  fill: #35414b;
+  stroke: #131d25;
   stroke-width: 0.65;
   vector-effect: non-scaling-stroke;
   transition: fill 140ms ease, stroke 140ms ease, filter 140ms ease;
@@ -213,8 +267,8 @@ button {
 
 .map-country--available {
   cursor: pointer;
-  fill: #657584;
-  stroke: #9aa8b4;
+  fill: #607180;
+  stroke: #93a3ae;
 }
 
 .map-country--available:hover,
@@ -297,11 +351,11 @@ button {
   display: flex;
   gap: 8px;
   align-items: stretch;
-  border: 1px solid #263442;
+  border: 1px solid var(--line);
   border-radius: 8px;
   padding: 8px;
   min-height: 78px;
-  background: rgba(12, 18, 25, 0.88);
+  background: rgba(14, 20, 26, 0.92);
 }
 
 .filter-popover {
@@ -325,8 +379,8 @@ button {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 18px;
-  background: #101821;
-  border: 1px solid #394b5c;
+  background: #111922;
+  border: 1px solid var(--line-strong);
   border-radius: 8px;
   padding: 18px;
   box-shadow: 0 16px 38px rgba(0, 0, 0, 0.42);
@@ -339,9 +393,9 @@ button {
   left: 38px;
   width: 16px;
   height: 16px;
-  background: #101821;
-  border-right: 1px solid #394b5c;
-  border-bottom: 1px solid #394b5c;
+  background: #111922;
+  border-right: 1px solid var(--line-strong);
+  border-bottom: 1px solid var(--line-strong);
   transform: rotate(45deg);
 }
 
@@ -358,11 +412,20 @@ button {
   font-size: 14px;
 }
 
-.toolbar-spacer {
-  color: #8c9aa7;
+.filter-summary {
   display: flex;
   align-items: center;
-  padding-inline: 12px;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.filter-summary span {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.025);
+  padding: 9px 10px;
+  font-size: 13px;
 }
 
 .country-panel {
@@ -372,7 +435,7 @@ button {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  color: #e7edf3;
+  color: var(--text);
 }
 
 .map-panel-overlay {
@@ -388,7 +451,7 @@ button {
 .map-panel-overlay .country-panel {
   height: 100%;
   max-height: none;
-  background: rgba(10, 15, 21, 0.92);
+  background: rgba(12, 18, 24, 0.94);
   border-color: rgba(129, 160, 184, 0.42);
   backdrop-filter: blur(10px);
 }
@@ -410,9 +473,9 @@ button {
 }
 
 .icon-button {
-  border: 1px solid #3a4c5e;
-  background: #121c26;
-  color: #e7edf3;
+  border: 1px solid var(--line-strong);
+  background: #121a22;
+  color: var(--text);
   border-radius: 6px;
   width: 34px;
   height: 34px;
@@ -436,9 +499,9 @@ button {
 
 .score-card,
 .article-list button {
-  border: 1px solid #344554;
-  background: #151f29;
-  color: #e7edf3;
+  border: 1px solid #33414d;
+  background: #141c24;
+  color: var(--text);
   border-radius: 8px;
   padding: 8px;
   display: grid;
@@ -463,7 +526,7 @@ button {
 }
 
 .score-pill {
-  border: 1px solid #10161c;
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 8px;
   display: grid;
   place-items: center;
@@ -473,19 +536,19 @@ button {
 }
 
 .score-pill--low {
-  background: #f2b7b6;
+  background: var(--negative);
 }
 
 .score-pill--medium {
-  background: #f4f1aa;
+  background: var(--warning);
 }
 
 .score-pill--great {
-  background: #bff1cf;
+  background: var(--positive);
 }
 
 .detail-block {
-  border: 1px solid #344554;
+  border: 1px solid #33414d;
   border-radius: 8px;
   padding: 18px;
 }
@@ -495,20 +558,39 @@ button {
 }
 
 .detail-block--green {
-  background: rgba(54, 155, 91, 0.28);
+  background: rgba(83, 209, 139, 0.14);
 }
 
 .detail-block--blue {
-  background: rgba(63, 126, 190, 0.28);
+  background: rgba(114, 198, 232, 0.14);
 }
 
 .detail-block--tan {
-  background: rgba(184, 130, 72, 0.28);
+  background: rgba(232, 210, 93, 0.13);
 }
 
 .article-list button {
   grid-template-columns: minmax(0, 1fr) auto;
-  min-height: 64px;
+  min-height: 68px;
+}
+
+.article-list button > span {
+  display: grid;
+  gap: 4px;
+}
+
+.article-list small,
+.empty-state {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.empty-state {
+  border: 1px dashed var(--line-strong);
+  border-radius: 8px;
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.025);
 }
 
 .chat-panel,
@@ -536,17 +618,17 @@ button {
 .thread-bar select {
   width: 100%;
   min-width: 0;
-  border: 1px solid #334657;
+  border: 1px solid var(--line-strong);
   border-radius: 6px;
   padding: 8px;
   background: #090f15;
-  color: #e7edf3;
+  color: var(--text);
 }
 
 .settings-panel {
   display: grid;
   gap: 8px;
-  border: 1px solid #263442;
+  border: 1px solid var(--line);
   border-radius: 8px;
   padding: 10px;
   background: #0f1720;
@@ -560,15 +642,15 @@ button {
 
 .settings-panel input,
 .composer textarea {
-  border: 1px solid #334657;
+  border: 1px solid var(--line-strong);
   border-radius: 6px;
   padding: 9px;
   background: #090f15;
-  color: #e7edf3;
+  color: var(--text);
 }
 
 .context-bin {
-  border: 1px solid #263442;
+  border: 1px solid var(--line);
   border-radius: 8px;
   padding: 10px;
   display: flex;
@@ -586,8 +668,9 @@ button {
 }
 
 .context-bin span {
-  background: #18344f;
-  border-radius: 999px;
+  background: #15293a;
+  border: 1px solid #25445b;
+  border-radius: 6px;
   padding: 5px 8px;
   font-size: 12px;
   max-width: 100%;
@@ -615,12 +698,14 @@ button {
 }
 
 .message--assistant {
-  background: #30213a;
+  background: #181f27;
+  border: 1px solid #2b3946;
   align-self: flex-start;
 }
 
 .message--user {
-  background: #173653;
+  background: #123047;
+  border: 1px solid #1e4e72;
   align-self: flex-end;
   max-width: 90%;
 }
@@ -683,7 +768,7 @@ button {
 }
 
 .message-content--markdown blockquote {
-  border-left: 3px solid #8160a0;
+  border-left: 3px solid var(--accent);
   color: #c9d2db;
   padding-left: 10px;
 }
@@ -710,7 +795,7 @@ button {
   border: 1px solid #34516b;
   border-radius: 8px;
   background: #14334e;
-  color: #e7edf3;
+  color: var(--text);
 }
 
 .chat-modal-backdrop {

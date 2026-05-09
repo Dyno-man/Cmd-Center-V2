@@ -40,10 +40,7 @@ export function CountryPanel({
           </div>
           <div className="detail-block detail-block--tan">
             <h3>Weight {selectedArticle.weight.toFixed(2)}</h3>
-            <p>
-              This article contributes to the category score based on recency, source relevance, country specificity,
-              and direct market linkage.
-            </p>
+            <p>{selectedArticle.weightReason ?? "This article contributes to the category score based on recency, source relevance, country specificity, and direct market linkage."}</p>
             <a href={selectedArticle.url} rel="noreferrer" target="_blank">Open original article</a>
           </div>
         </div>
@@ -64,12 +61,19 @@ export function CountryPanel({
           <p>{selectedCategory.impactSummary}</p>
         </div>
         <div className="article-list">
-          {selectedCategory.articles.map((article) => (
-            <button key={article.id} onClick={() => onSelectArticle(article)} type="button">
-              <span>{article.title}</span>
-              <strong>{article.weight.toFixed(2)}</strong>
-            </button>
-          ))}
+          {selectedCategory.articles.length ? (
+            selectedCategory.articles.map((article) => (
+              <button key={article.id} onClick={() => onSelectArticle(article)} type="button">
+                <span>
+                  <strong>{article.title}</strong>
+                  <small>{article.weightReason ?? article.source}</small>
+                </span>
+                <strong>{article.weight.toFixed(2)}</strong>
+              </button>
+            ))
+          ) : (
+            <div className="empty-state">No supporting articles are attached to this score yet.</div>
+          )}
         </div>
       </aside>
     );
@@ -82,7 +86,7 @@ export function CountryPanel({
         onAdd={() => onAddContext(country.name, countryContext(country))}
       />
       <div className="score-list">
-        {country.categories.map((category) => {
+        {country.categories.length ? country.categories.map((category) => {
           const band = bandForScore(category.score);
           return (
             <button className="score-card" key={category.id} onClick={() => onSelectCategory(category)} type="button">
@@ -93,7 +97,7 @@ export function CountryPanel({
               </span>
             </button>
           );
-        })}
+        }) : <div className="empty-state">No country-level market categories are available yet.</div>}
       </div>
     </aside>
   );
@@ -126,5 +130,5 @@ function categoryContext(category: MarketCategory) {
 }
 
 function articleContext(article: ArticleContext) {
-  return `${article.title}\nSource: ${article.source}\nWeight: ${article.weight.toFixed(2)}\n${article.summary}\n${article.marketReason}\n${article.url}`;
+  return `${article.title}\nSource: ${article.source}\nWeight: ${article.weight.toFixed(2)}\nWeight reason: ${article.weightReason ?? "Not provided"}\n${article.summary}\n${article.marketReason}\n${article.url}`;
 }

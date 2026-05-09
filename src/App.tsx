@@ -19,6 +19,8 @@ import {
 import type { ArticleContext, ChatMessage, ChatThread, CommandCenterSnapshot, CountryContext, MarketCategory } from "./types/domain";
 import "./styles.css";
 
+type RefreshPhase = "loading" | "archived" | "fetching" | "deduping" | "ready" | "failed";
+
 export default function App() {
   const [snapshot, setSnapshot] = useState<CommandCenterSnapshot>(sampleSnapshot);
   const [selectedCountryCode, setSelectedCountryCode] = useState<string | null>(null);
@@ -28,25 +30,49 @@ export default function App() {
   const [activeNewsTypes, setActiveNewsTypes] = useState<string[]>(["Financial Markets", "Policy", "Supply Chain"]);
   const [attachedContext, setAttachedContext] = useState<{ label: string; content: string }[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [hydrated, setHydrated] = useState(false);
+  const [refreshPhase, setRefreshPhase] = useState<RefreshPhase>("loading");
+  const [refreshError, setRefreshError] = useState<string | null>(null);
   const [chatThreads, setChatThreads] = useState<ChatThread[]>([]);
   const [activeThreadId, setActiveThreadId] = useState("default");
 
   useEffect(() => {
+    let cancelled = false;
+
     async function loadInitialState() {
-      const [loadedSnapshot, threads] = await Promise.all([loadSnapshot(), loadChatThreads()]);
-      const activeThread = threads[0] ?? (await createChatThread("Current Chat"));
-      const messages = await loadChatMessages(activeThread.id);
-      setActiveThreadId(activeThread.id);
-      setChatThreads(threads.length ? threads : [activeThread]);
-      setSnapshot({ ...loadedSnapshot, chat: messages.length ? messages : loadedSnapshot.chat });
+      try {
+        setRefreshPhase("loading");
+        const [loadedSnapshot, threads] = await Promise.all([loadSnapshot(), loadChatThreads()]);
+        if (cancelled) return;
+
+        const activeThread = threads[0] ?? (await createChatThread("Current Chat"));
+        const messages = await loadChatMessages(activeThread.id);
+        if (cancelled) return;
+
+        const archivedSnapshot = { ...loadedSnapshot, chat: messages.length ? messages : loadedSnapshot.chat };
+        setActiveThreadId(activeThread.id);
+        setChatThreads(threads.length ? threads : [activeThread]);
+        setSnapshot(archivedSnapshot);
+        setHydrated(true);
+        setRefreshPhase("archived");
+        void runRefresh(archivedSnapshot, true);
+      } catch (error) {
+        if (cancelled) return;
+        setHydrated(true);
+        setRefreshPhase("failed");
+        setRefreshError(error instanceof Error ? error.message : "Startup load failed.");
+      }
     }
 
     void loadInitialState();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
-    saveSnapshot(snapshot);
-  }, [snapshot]);
+    if (hydrated) void saveSnapshot(snapshot);
+  }, [hydrated, snapshot]);
 
   const countries = useMemo(
     () => snapshot.countries.filter((country) => activeContinents.includes(country.continent)),
@@ -91,10 +117,21 @@ export default function App() {
     });
   }
 
-  async function runRefresh() {
+  async function runRefresh(baseSnapshot = snapshot, automatic = false) {
     setRefreshing(true);
+    setRefreshError(null);
+    setRefreshPhase("fetching");
     try {
-      setSnapshot(await refreshData(snapshot));
+      const refreshed = await refreshData(baseSnapshot);
+      setRefreshPhase("deduping");
+      setSnapshot((current) => ({
+        ...refreshed,
+        chat: current.chat
+      }));
+      setRefreshPhase("ready");
+    } catch (error) {
+      setRefreshPhase(automatic ? "archived" : "failed");
+      setRefreshError(error instanceof Error ? error.message : "Live refresh failed.");
     } finally {
       setRefreshing(false);
     }
@@ -125,10 +162,13 @@ export default function App() {
           <div>
             <h1>Command Center</h1>
             <span>Last refresh {new Date(snapshot.lastRefresh).toLocaleString()}</span>
+            <small className={`refresh-status refresh-status--${refreshPhase}`}>
+              {statusText(refreshPhase, refreshError)}
+            </small>
           </div>
           <MarketStrip indexes={snapshot.indexes} />
-          <button className="refresh-button" disabled={refreshing} onClick={runRefresh} type="button">
-            <RefreshCw size={18} />
+          <button className="refresh-button" disabled={refreshing} onClick={() => void runRefresh()} type="button">
+            <RefreshCw className={refreshing ? "spin" : undefined} size={18} />
             Refresh
           </button>
         </header>
@@ -177,4 +217,15 @@ export default function App() {
       />
     </main>
   );
+}
+
+function statusText(phase: RefreshPhase, error: string | null) {
+  if (error && phase === "failed") return `Refresh issue: ${error}`;
+  if (error) return `Archived data available; live refresh issue: ${error}`;
+  if (phase === "loading") return "Loading archived intelligence";
+  if (phase === "archived") return "Archived data loaded; live refresh running";
+  if (phase === "fetching") return "Fetching live market and news data";
+  if (phase === "deduping") return "Deduping and scoring articles";
+  if (phase === "ready") return "Live data synced";
+  return "Archived data available";
 }
